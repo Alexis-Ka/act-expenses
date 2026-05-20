@@ -249,6 +249,16 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
             </select>
             <input type="text" id="rf-cli-val" placeholder="..." style="width:100px;font-size:11px" oninput="renderList()">
           </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <span style="font-size:10px;color:var(--text3)">Σχόλιο</span>
+            <select id="rf-com-mode" style="width:110px;font-size:11px" onchange="renderList()">
+              <option value="all">Όλα</option>
+              <option value="contains">Περιέχει</option>
+              <option value="empty">Κενό</option>
+              <option value="notempty">Μη κενό</option>
+            </select>
+            <input type="text" id="rf-com-val" placeholder="..." style="width:100px;font-size:11px" oninput="renderList()">
+          </div>
         </div>
         <div class="active-filters" id="active-filters"></div>
       </div>
@@ -530,6 +540,8 @@ function getFiltered(){
   const rfConVal=document.getElementById('rf-con-val').value;
   const rfCliMode=document.getElementById('rf-cli-mode').value;
   const rfCliVal=document.getElementById('rf-cli-val').value;
+  const rfComMode=document.getElementById('rf-com-mode').value;
+  const rfComVal=document.getElementById('rf-com-val').value;
 
   let result=expenses.filter(e=>{
     if(accVal){const acc=e.account.toLowerCase();if(accMode==='begins'&&!acc.startsWith(accVal))return false;if(accMode==='contains'&&!acc.includes(accVal))return false;if(accMode==='exact'&&acc!==accVal)return false;}
@@ -542,6 +554,7 @@ function getFiltered(){
     if(!applyRefFilter(e.clientInvoice,rfInvMode,rfInvVal))return false;
     if(!applyRefFilter(e.contractRef,rfConMode,rfConVal))return false;
     if(!applyRefFilter(e.clientRef,rfCliMode,rfCliVal))return false;
+    if(!applyRefFilter(e.comment,rfComMode,rfComVal))return false;
     return true;
   });
 
@@ -641,9 +654,9 @@ function renderActiveFilters(){
   if(type)chips.push({label:type,clear:()=>{document.getElementById('f-type').value='';}});
   const topn=document.getElementById('f-topn').value;
   if(topn!=='0')chips.push({label:`Top ${topn}`,clear:()=>{document.getElementById('f-topn').value='0';}});
-  ['inv','con','cli'].forEach(k=>{
+  ['inv','con','cli','com'].forEach(k=>{
     const mode=document.getElementById(`rf-${k}-mode`).value,val=document.getElementById(`rf-${k}-val`).value;
-    const name={inv:'Αρ.Παρ.Πελάτη',con:'Contract',cli:'Πελάτης'}[k];
+    const name={inv:'Αρ.Παρ.Πελάτη',con:'Contract',cli:'Πελάτης',com:'Σχόλιο'}[k];
     if(mode!=='all')chips.push({label:`${name}: ${mode==='empty'?'κενό':mode==='notempty'?'μη κενό':`"${val}"`}`,clear:(kk=>()=>{document.getElementById(`rf-${kk}-mode`).value='all';document.getElementById(`rf-${kk}-val`).value='';})(k)});
   });
   const el=document.getElementById('active-filters');
@@ -654,8 +667,8 @@ function renderActiveFilters(){
 function clearChip(i){const chips=document.getElementById('active-filters')._chips||[];if(chips[i]){chips[i].clear();renderList();}}
 
 function clearFilters(){
-  ['f-acc-val','f-vendor','f-date-from','f-date-to','f-amt-from','f-amt-to','rf-inv-val','rf-con-val','rf-cli-val'].forEach(id=>document.getElementById(id).value='');
-  ['f-acc-mode','f-type','f-topn','rf-inv-mode','rf-con-mode','rf-cli-mode'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=el.options[0].value;});
+  ['f-acc-val','f-vendor','f-date-from','f-date-to','f-amt-from','f-amt-to','rf-inv-val','rf-con-val','rf-cli-val','rf-com-val'].forEach(id=>document.getElementById(id).value='');
+  ['f-acc-mode','f-type','f-topn','rf-inv-mode','rf-con-mode','rf-cli-mode','rf-com-mode'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=el.options[0].value;});
   renderList();
 }
 
