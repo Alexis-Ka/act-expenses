@@ -127,7 +127,7 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
 </style>
 </head>
 <body>
-<div id="login-screen">
+<div id="login-screen" style="display:flex">
   <div class="login-box">
     <div class="login-logo"><span>ACT</span> · EXPENSES</div>
     <div class="login-sub">Expense Tracker · Secure</div>
@@ -136,7 +136,7 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
   </div>
 </div>
 
-<div id="app">
+<div id="app" style="display:none">
   <header>
     <div class="logo"><span>ACT</span> · EXPENSES</div>
     <div class="header-right">
@@ -396,20 +396,6 @@ function signIn(){
       await initSheets();await loadData();
     }
   });
-  const stored=sessionStorage.getItem('gtoken');
-  if(stored){
-    accessToken=stored;
-    fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}})
-      .then(r=>r.ok?r.json():Promise.reject())
-      .then(info=>{
-        document.getElementById('user-name').textContent=info.email||'';
-        document.getElementById('login-screen').style.display='none';
-        document.getElementById('app').style.display='block';
-        initSheets().then(()=>loadData());
-      })
-      .catch(()=>{sessionStorage.removeItem('gtoken');accessToken=null;tokenClient.requestAccessToken();});
-    return;
-  }
   tokenClient.requestAccessToken();
 }
 function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);accessToken=null;sessionStorage.removeItem('gtoken');document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none';}
@@ -903,7 +889,33 @@ function toast(msg,type='success'){const el=document.getElementById('toast');el.
 
 document.getElementById('form-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeForm();});
 document.getElementById('detail-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDetail();});
-window.addEventListener('load',()=>{if(sessionStorage.getItem('gtoken'))signIn();});
+window.addEventListener('load',()=>{
+  const stored=sessionStorage.getItem('gtoken');
+  if(stored){
+    // Verify token before trying to use it
+    fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+stored}})
+      .then(r=>{
+        if(r.ok)return r.json();
+        // Token expired - clear and show login
+        sessionStorage.removeItem('gtoken');
+        document.getElementById('login-screen').style.display='flex';
+        throw new Error('token expired');
+      })
+      .then(info=>{
+        accessToken=stored;
+        document.getElementById('user-name').textContent=info.email||'';
+        document.getElementById('login-screen').style.display='none';
+        document.getElementById('app').style.display='block';
+        initSheets().then(()=>loadData());
+      })
+      .catch(()=>{
+        sessionStorage.removeItem('gtoken');
+        document.getElementById('login-screen').style.display='flex';
+      });
+  } else {
+    document.getElementById('login-screen').style.display='flex';
+  }
+});
 </script>
 </body>
 </html>
