@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ACT · Expense Tracker</title>
-<script src="https://window.accounts.google.com/gsi/client"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
 <style>
 :root{--red:#E93423;--red-dark:#c42a1b;--bg:#f5f5f5;--bg2:#fff;--bg3:#f0f0f0;--border:#e0e0e0;--text:#1a1a1a;--text2:#555;--text3:#999;--green:#16a34a;--amber:#d97706;--blue:#2563eb;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -127,7 +127,7 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
 </style>
 </head>
 <body>
-<div id="login-screen" style="display:flex">
+<div id="login-screen">
   <div class="login-box">
     <div class="login-logo"><span>ACT</span> · EXPENSES</div>
     <div class="login-sub">Expense Tracker · Secure</div>
@@ -136,7 +136,7 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
   </div>
 </div>
 
-<div id="app" style="display:none">
+<div id="app">
   <header>
     <div class="logo"><span>ACT</span> · EXPENSES</div>
     <div class="header-right">
@@ -149,7 +149,7 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
   <div class="nav-tabs">
     <button class="tab active" onclick="showTab('list')">Δαπάνες</button>
     <button class="tab" onclick="showTab('import')">Import Softone</button>
-    <button class="tab" onclick="showTab('window.accounts')">Λογαριασμοί</button>
+    <button class="tab" onclick="showTab('accounts')">Λογαριασμοί</button>
   </div>
   <main>
     <div id="tab-list">
@@ -166,7 +166,7 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
                 <option value="contains">Περιέχει</option>
                 <option value="exact">Ακριβώς</option>
               </select>
-              <input type="text" id="f-acc-val" value="" placeholder="61..." style="width:90px" oninput="renderList()">
+              <input type="text" id="f-acc-val" placeholder="π.χ. 61" style="width:90px" oninput="renderList()">
             </div>
           </div>
           <div class="filter-sep"></div>
@@ -298,11 +298,11 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
     </div>
 
     <!-- ACCOUNTS TAB -->
-    <div id="tab-window.accounts" style="display:none">
+    <div id="tab-accounts" style="display:none">
       <div class="table-wrap" style="margin-bottom:16px">
         <table>
           <thead><tr><th>Κωδικός</th><th>Περιγραφή</th><th>Σύνολο</th><th>Εγγραφές</th><th></th></tr></thead>
-          <tbody id="window.accounts-tbody"></tbody>
+          <tbody id="accounts-tbody"></tbody>
         </table>
       </div>
       <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;">
@@ -367,52 +367,57 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
 <div id="toast"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-window.CLIENT_ID='753823172041-bdicr80j0p0749cgaqa4gmh6l4pkfh6o.apps.googleusercontent.com';
-window.SHEET_ID='1lb0ZobAdQVkoFji_MJAMm5df5ua0IfwRp7CHaa2BPvk';
-window.SCOPES='https://www.googleapis.com/auth/spreadsheets';
-window.SH={exp:'Expenses',acc:'Accounts'};
-window.tokenClient=null;
-window.accessToken=null;
-window.editingId=null;
-window.importRows=[];
-window.expenses=[];
-window.accounts=[];
-window.sortCol='date';
-window.sortDir=-1;
-window.colOrder=['clientInvoice','contractRef','clientRef','comment','docLink'];
-window.hiddenCols=new Set();
-window.dragSrcCol=null;
+const CLIENT_ID='753823172041-bdicr80j0p0749cgaqa4gmh6l4pkfh6o.apps.googleusercontent.com';
+const SHEET_ID='1lb0ZobAdQVkoFji_MJAMm5df5ua0IfwRp7CHaa2BPvk';
+const SCOPES='https://www.googleapis.com/auth/spreadsheets';
+const SH={exp:'Expenses',acc:'Accounts'};
+
+let tokenClient,accessToken=null,expenses=[],accounts=[],editingId=null,importRows=[];
+let sortCol='date',sortDir=-1;
 
 // Column definitions — order is drag-droppable for ref cols
 const FIXED_COLS=['date','account','vendor','invoiceNo','amount'];
 const REF_COLS=['clientInvoice','contractRef','clientRef','comment','docLink'];
+let colOrder=[...REF_COLS];
+let hiddenCols=new Set();
 
 // ── AUTH ──────────────────────────────────────────────────────
-function initTokenClient(){
-  window.tokenClient=google.window.accounts.oauth2.initTokenClient({
+function signIn(){
+  tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:CLIENT_ID,scope:SCOPES,
     callback:async(resp)=>{
       if(resp.error){toast('Σφάλμα: '+resp.error,'error');return;}
-      window.accessToken=resp.access_token;
-      sessionStorage.setItem('gtoken',window.accessToken);
-      const info=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+window.accessToken}}).then(r=>r.json());
+      accessToken=resp.access_token;
+      sessionStorage.setItem('gtoken',accessToken);
+      const info=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}}).then(r=>r.json());
       document.getElementById('user-name').textContent=info.email||'';
       document.getElementById('login-screen').style.display='none';
       document.getElementById('app').style.display='block';
       await initSheets();await loadData();
     }
   });
+  const stored=sessionStorage.getItem('gtoken');
+  if(stored){
+    accessToken=stored;
+    fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}})
+      .then(r=>r.ok?r.json():Promise.reject())
+      .then(info=>{
+        document.getElementById('user-name').textContent=info.email||'';
+        document.getElementById('login-screen').style.display='none';
+        document.getElementById('app').style.display='block';
+        initSheets().then(()=>loadData());
+      })
+      .catch(()=>{sessionStorage.removeItem('gtoken');accessToken=null;tokenClient.requestAccessToken();});
+    return;
+  }
+  tokenClient.requestAccessToken();
 }
-function signIn(){
-  if(!window.tokenClient)initTokenClient();
-  window.tokenClient.requestAccessToken({prompt:'select_account'});
-}
-function signOut(){if(window.accessToken)google.window.accounts.oauth2.revoke(window.accessToken);window.accessToken=null;sessionStorage.removeItem('gtoken');document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none';}
+function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);accessToken=null;sessionStorage.removeItem('gtoken');document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none';}
 
 // ── SHEETS API ────────────────────────────────────────────────
 async function api(method,path,body){
   const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+path,
-    {method,headers:{Authorization:'Bearer '+window.accessToken,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+    {method,headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
   if(!r.ok)throw new Error(await r.text());
   return r.json();
 }
@@ -421,14 +426,14 @@ async function appendValues(sheet,values){return api('POST','/values/'+encodeURI
 async function updateValues(range,values){return api('PUT','/values/'+encodeURIComponent(range)+'?valueInputOption=RAW',{values});}
 async function batchUpd(requests){return api('POST',':batchUpdate',{requests});}
 async function getSheetIdByName(name){
-  const m=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID,{headers:{Authorization:'Bearer '+window.accessToken}}).then(r=>r.json());
+  const m=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID,{headers:{Authorization:'Bearer '+accessToken}}).then(r=>r.json());
   return m.sheets.find(s=>s.properties.title===name)?.properties.sheetId;
 }
 
 // ── INIT ──────────────────────────────────────────────────────
 async function initSheets(){
   setStatus('Αρχικοποίηση...',true);
-  const m=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID,{headers:{Authorization:'Bearer '+window.accessToken}}).then(r=>r.json());
+  const m=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID,{headers:{Authorization:'Bearer '+accessToken}}).then(r=>r.json());
   const names=m.sheets.map(s=>s.properties.title);
   if(!names.includes(SH.exp)){
     await batchUpd([{addSheet:{properties:{title:SH.exp}}}]);
@@ -446,57 +451,49 @@ async function loadData(){
   setStatus('Φόρτωση...',true);
   try{
     const[eR,aR]=await Promise.all([getValues(SH.exp+'!A2:L10000'),getValues(SH.acc+'!A2:B1000')]);
-    window.expenses=((eR.values)||[]).map(r=>{
-      if(!r||!r[0])return null;
-      // Detect format: if r[7] looks like an invoice (contains letters+slash) = new 12-col
-      // Old 11-col: ID,Date,Acc,Amt,Vendor,Type,InvoiceNo,Contract,Client,Link,Comment
-      // New 12-col: ID,Date,Acc,Amt,Vendor,Type,InvoiceNo,ClientInvoice,Contract,Client,Link,Comment
-      const col7=(r[7]||'').toString().trim();
-      const col11=(r[11]||'').toString().trim();
-      // If col11 exists with content OR col7 looks like an invoice number → 12-col
-      const is12=col11!==''||(col7!==''&&/[A-Z]{2,}/.test(col7));
-      const amt=parseAmount(r[3]);
+    expenses=((eR.values)||[]).map(r=>{
+      // Support both old 11-col and new 12-col format
+      const is12=(r.length>=12&&(r[7]||'').toString().trim()!==''&&!(r[7]||'').toString().includes('/'));
+      // Heuristic: if col7 looks like a contract/client ref (not an invoice number), it's old format
+      // Safer: check if we have 12 meaningful cols by seeing if col11 exists
+      const has12=r.length>=12;
       return {
-        id:r[0]||'',
-        date:r[1]||'',
-        account:r[2]||'',
-        amount:isNaN(amt)?0:Math.round(amt*100)/100,
-        vendor:r[4]||'',
-        type:r[5]||'Τιμολόγιο',
+        id:r[0]||'',date:r[1]||'',account:r[2]||'',
+        amount:Math.round(parseAmount(r[3])*100)/100,
+        vendor:r[4]||'',type:r[5]||'Τιμολόγιο',
         invoiceNo:r[6]||'',
-        clientInvoice:is12?(r[7]||''):'',
-        contractRef:is12?(r[8]||''):(r[7]||''),
-        clientRef:is12?(r[9]||''):(r[8]||''),
-        docLink:is12?(r[10]||''):(r[9]||''),
-        comment:is12?(r[11]||''):(r[10]||'')
+        clientInvoice:has12?r[7]||'':'',
+        contractRef:has12?r[8]||'':r[7]||'',
+        clientRef:has12?r[9]||'':r[8]||'',
+        docLink:has12?r[10]||'':r[9]||'',
+        comment:has12?r[11]||'':r[10]||''
       };
-    }).filter(e=>e&&e.id);
-    window.accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
+    }).filter(e=>e.id);
+    accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
     renderAll();
-    setStatus('Συνδεδεμένος · '+window.expenses.length+' εγγραφές',false);
+    setStatus('Συνδεδεμένος · '+expenses.length+' εγγραφές',false);
   }catch(e){setStatus('Σφάλμα',false);toast('Σφάλμα φόρτωσης: '+e.message,'error');}
 }
 
 // ── FORMAT ────────────────────────────────────────────────────
 function parseAmount(v){
-  try{
-    if(v===null||v===undefined||v==='')return 0;
-    if(typeof v==='number')return isNaN(v)?0:v;
-    const s=v.toString().trim().replace(/[€\u20ac\s]/g,'');
-    if(!s||s==='-')return 0;
-    const dots=(s.match(/\./g)||[]).length;
-    const commas=(s.match(/,/g)||[]).length;
-    let n;
-    if(dots>=1&&commas===1&&s.lastIndexOf(',')>s.lastIndexOf('.'))
-      n=parseFloat(s.replace(/\./g,'').replace(',','.'));
-    else if(commas>=1&&dots===1&&s.lastIndexOf('.')>s.lastIndexOf(','))
-      n=parseFloat(s.replace(/,/g,''));
-    else if(commas===1&&dots===0)
-      n=parseFloat(s.replace(',','.'));
-    else
-      n=parseFloat(s.replace(/,/g,''));
-    return isNaN(n)?0:n;
-  }catch(e){return 0;}
+  if(v===null||v===undefined||v==='')return 0;
+  if(typeof v==='number')return v;
+  const s=v.toString().trim().replace(/[€\s]/g,'');
+  if(!s)return 0;
+  // Count dots and commas
+  const dots=( s.match(/\./g)||[]).length;
+  const commas=(s.match(/,/g)||[]).length;
+  // Multiple dots = thousands separators, last comma = decimal: 1.234.567,89
+  if(dots>=1&&commas===1&&s.lastIndexOf(',')>s.lastIndexOf('.'))
+    return parseFloat(s.replace(/\./g,'').replace(',','.'));
+  // Multiple commas = thousands separators, last dot = decimal: 1,234,567.89
+  if(commas>=1&&dots===1&&s.lastIndexOf('.')>s.lastIndexOf(','))
+    return parseFloat(s.replace(/,/g,''));
+  // Only comma, no dot: decimal comma 1700,50
+  if(commas===1&&dots===0)return parseFloat(s.replace(',','.'));
+  // Only dot or plain number
+  return parseFloat(s.replace(/,/g,''))||0;
 }
 function fEur(n){return new Intl.NumberFormat('el-GR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);}
 function fDate(d){if(!d)return'—';try{return new Date(d).toLocaleDateString('el-GR');}catch{return d;}}
@@ -508,17 +505,18 @@ function toggleCol(col,el){
   renderList();
 }
 
+let dragSrcCol=null;
 function initDragDrop(){
   const hr=document.getElementById('header-row');
   hr.querySelectorAll('th[data-col]').forEach(th=>{
     th.draggable=true;
-    th.addEventListener('dragstart',e=>{window.dragSrcCol=th.dataset.col;th.classList.add('dragging');});
+    th.addEventListener('dragstart',e=>{dragSrcCol=th.dataset.col;th.classList.add('dragging');});
     th.addEventListener('dragend',e=>{th.classList.remove('dragging');hr.querySelectorAll('th').forEach(t=>t.classList.remove('drag-over'));});
-    th.addEventListener('dragover',e=>{e.preventDefault();if(th.dataset.col&&th.dataset.col!==window.dragSrcCol&&REF_COLS.includes(th.dataset.col))th.classList.add('drag-over');});
+    th.addEventListener('dragover',e=>{e.preventDefault();if(th.dataset.col&&th.dataset.col!==dragSrcCol&&REF_COLS.includes(th.dataset.col))th.classList.add('drag-over');});
     th.addEventListener('dragleave',e=>{th.classList.remove('drag-over');});
     th.addEventListener('drop',e=>{
       e.preventDefault();th.classList.remove('drag-over');
-      const src=window.dragSrcCol,dst=th.dataset.col;
+      const src=dragSrcCol,dst=th.dataset.col;
       if(!src||!dst||src===dst||!REF_COLS.includes(src)||!REF_COLS.includes(dst))return;
       const si=colOrder.indexOf(src),di=colOrder.indexOf(dst);
       if(si<0||di<0)return;
@@ -574,7 +572,7 @@ function getFiltered(){
   const rfComMode=document.getElementById('rf-com-mode').value;
   const rfComVal=document.getElementById('rf-com-val').value;
 
-  let result=window.expenses.filter(e=>{
+  let result=expenses.filter(e=>{
     if(accVal){const acc=e.account.toLowerCase();if(accMode==='begins'&&!acc.startsWith(accVal))return false;if(accMode==='contains'&&!acc.includes(accVal))return false;if(accMode==='exact'&&acc!==accVal)return false;}
     if(vendor&&!(e.vendor||'').toLowerCase().includes(vendor))return false;
     if(dateFrom&&e.date<dateFrom)return false;
@@ -590,17 +588,17 @@ function getFiltered(){
   });
 
   result.sort((a,b)=>{
-    let va=a[window.sortCol],vb=b[window.sortCol];
-    if(window.sortCol==='amount'){va=parseAmount(va);vb=parseAmount(vb);}
+    let va=a[sortCol],vb=b[sortCol];
+    if(sortCol==='amount'){va=parseAmount(va);vb=parseAmount(vb);}
     else{va=(va||'').toString();vb=(vb||'').toString();}
-    return va<vb?-window.sortDir:va>vb?window.sortDir:0;
+    return va<vb?-sortDir:va>vb?sortDir:0;
   });
 
   if(topN>0){const ids=new Set([...result].sort((a,b)=>b.amount-a.amount).slice(0,topN).map(e=>e.id));result=result.filter(e=>ids.has(e.id));}
   return result;
 }
 
-function setSort(col){if(window.sortCol===col)window.sortDir*=-1;else{window.sortCol=col;window.sortDir=-1;}renderList();}
+function setSort(col){if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=-1;}renderList();}
 
 // ── RENDER ────────────────────────────────────────────────────
 function renderAll(){renderSummary();renderList();renderAccountsTab();populateSelects();}
@@ -612,7 +610,7 @@ function renderSummary(){
   filtered.forEach(e=>{if(!byAcc[e.account])byAcc[e.account]={t:0,c:0};byAcc[e.account].t+=e.amount;byAcc[e.account].c++;});
   const top=Object.entries(byAcc).sort((a,b)=>b[1].t-a[1].t).slice(0,4);
   let h=`<div class="summary-card"><div class="lbl">Σύνολο φίλτρων</div><div class="val">${fEur(total)}</div><div class="sub">${filtered.length} εγγραφές</div></div>`;
-  top.forEach(([code,d])=>{const a=window.accounts.find(x=>x.code===code);h+=`<div class="summary-card"><div class="lbl">${code}</div><div class="val">${fEur(d.t)}</div><div class="sub">${a?a.label:''} · ${d.c} εγγρ.</div></div>`;});
+  top.forEach(([code,d])=>{const a=accounts.find(x=>x.code===code);h+=`<div class="summary-card"><div class="lbl">${code}</div><div class="val">${fEur(d.t)}</div><div class="sub">${a?a.label:''} · ${d.c} εγγρ.</div></div>`;});
   document.getElementById('summary-grid').innerHTML=h;
 }
 
@@ -627,8 +625,8 @@ function renderList(){
   hr.innerHTML=cols.map(c=>{
     const m=COL_META[c];
     const isRef=REF_COLS.includes(c);
-    const sorted=window.sortCol===c;
-    const icon=sorted?(window.sortDir===1?'↑':'↓'):'↕';
+    const sorted=sortCol===c;
+    const icon=sorted?(sortDir===1?'↑':'↓'):'↕';
     const dragHandle=isRef?`<span class="drag-handle" title="Σύρε για μετακίνηση">⠿</span>`:'';
     return`<th ${m.sortable?`onclick="setSort('${c}')`:''}` +
       `" id="th-${c}" ${isRef?`data-col="${c}"`:''}` +
@@ -645,7 +643,7 @@ function renderList(){
   }
 
   tbody.innerHTML=filtered.map(e=>{
-    const acc=window.accounts.find(a=>a.code===e.account);
+    const acc=accounts.find(a=>a.code===e.account);
     return`<tr onclick="openDetail('${e.id}')">${cols.map(c=>{
       switch(c){
         case'date':return`<td><div style="font-weight:600">${fDate(e.date)}</div><div style="margin-top:2px"><span class="badge badge-gray">${e.type}</span></div></td>`;
@@ -704,21 +702,21 @@ function clearFilters(){
 }
 
 function renderAccountsTab(){
-  document.getElementById('window.accounts-tbody').innerHTML=window.accounts.map((a,i)=>{
-    const total=window.expenses.filter(e=>e.account===a.code).reduce((s,e)=>s+e.amount,0);
-    const count=window.expenses.filter(e=>e.account===a.code).length;
+  document.getElementById('accounts-tbody').innerHTML=accounts.map((a,i)=>{
+    const total=expenses.filter(e=>e.account===a.code).reduce((s,e)=>s+e.amount,0);
+    const count=expenses.filter(e=>e.account===a.code).length;
     return`<tr><td style="color:var(--red);font-weight:700">${a.code}</td><td>${a.label}</td><td style="font-weight:600">${fEur(total)}</td><td style="color:var(--text3)">${count}</td><td><button class="btn btn-ghost btn-sm" onclick="deleteAccount(${i})">✕</button></td></tr>`;
   }).join('');
 }
 
 function populateSelects(){
   const dl=document.getElementById('account-list');
-  if(dl)dl.innerHTML=window.accounts.map(a=>`<option value="${a.code}">${a.code} · ${a.label}</option>`).join('');
+  if(dl)dl.innerHTML=accounts.map(a=>`<option value="${a.code}">${a.code} · ${a.label}</option>`).join('');
 }
 
 // ── FORM ──────────────────────────────────────────────────────
 function openForm(exp=null){
-  window.editingId=exp?exp.id:null;
+  editingId=exp?exp.id:null;
   document.getElementById('form-title').textContent=exp?'Επεξεργασία Δαπάνης':'Νέα Δαπάνη';
   document.getElementById('delete-btn').style.display=exp?'inline-flex':'none';
   document.getElementById('f-date').value=exp?exp.date:new Date().toISOString().split('T')[0];
@@ -743,7 +741,7 @@ async function submitForm(){
   const amount=Math.round(parseAmount(rawVal)*100)/100;
   if(!date||!account||isNaN(amount)){toast('Συμπλήρωσε τα υποχρεωτικά (*)','error');return;}
   const row=[
-    window.editingId||Date.now().toString(),date,account,amount,
+    editingId||Date.now().toString(),date,account,amount,
     document.getElementById('f-vendor2').value,
     document.getElementById('f-type2').value,
     document.getElementById('f-invoice').value,
@@ -756,16 +754,16 @@ async function submitForm(){
   const btn=document.getElementById('save-btn');
   btn.innerHTML='<span class="spinner"></span>';btn.disabled=true;
   try{
-    if(window.editingId){const idx=window.expenses.findIndex(e=>e.id===window.editingId);if(idx>=0)await updateValues(SH.exp+`!A${idx+2}:L${idx+2}`,[row]);}
+    if(editingId){const idx=expenses.findIndex(e=>e.id===editingId);if(idx>=0)await updateValues(SH.exp+`!A${idx+2}:L${idx+2}`,[row]);}
     else{await appendValues(SH.exp,[row]);}
-    closeForm();await loadData();toast(window.editingId?'Αποθηκεύτηκε!':'Καταχωρήθηκε!','success');
+    closeForm();await loadData();toast(editingId?'Αποθηκεύτηκε!':'Καταχωρήθηκε!','success');
   }catch(e){toast('Σφάλμα: '+e.message,'error');}
   finally{btn.innerHTML='Αποθήκευση';btn.disabled=false;}
 }
 
 async function deleteExpense(){
-  if(!window.editingId||!confirm('Διαγραφή εγγραφής;'))return;
-  const idx=window.expenses.findIndex(e=>e.id===window.editingId);if(idx<0)return;
+  if(!editingId||!confirm('Διαγραφή εγγραφής;'))return;
+  const idx=expenses.findIndex(e=>e.id===editingId);if(idx<0)return;
   try{
     const sid=await getSheetIdByName(SH.exp);
     await batchUpd([{deleteDimension:{range:{sheetId:sid,dimension:'ROWS',startIndex:idx+1,endIndex:idx+2}}}]);
@@ -775,8 +773,8 @@ async function deleteExpense(){
 
 // ── DETAIL ────────────────────────────────────────────────────
 function openDetail(id){
-  const e=window.expenses.find(x=>x.id===id);if(!e)return;
-  const acc=window.accounts.find(a=>a.code===e.account);
+  const e=expenses.find(x=>x.id===id);if(!e)return;
+  const acc=accounts.find(a=>a.code===e.account);
   document.getElementById('detail-content').innerHTML=`
     <div class="modal-title">
       <div>
@@ -786,7 +784,7 @@ function openDetail(id){
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
         <button class="modal-close" onclick="closeDetail()">✕</button>
-        <button class="btn btn-ghost btn-sm" onclick="closeDetail();setTimeout(()=>openForm(window.expenses.find(x=>x.id==='${e.id}')),100)">✏️ Επεξεργασία</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeDetail();setTimeout(()=>openForm(expenses.find(x=>x.id==='${e.id}')),100)">✏️ Επεξεργασία</button>
       </div>
     </div>
     <div class="detail-grid">
@@ -839,7 +837,7 @@ function parseImportFile(file){
       const wb=XLSX.read(ev.target.result,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      window.importRows=[];let curAcc='';
+      importRows=[];let curAcc='';
       for(let i=0;i<raw.length;i++){
         const r=raw[i];
         if(r[1]&&typeof r[1]==='string'&&/^\d{2}\.\d{2}/.test(r[1].trim())&&r[2]){curAcc=r[1].trim();continue;}
@@ -849,7 +847,7 @@ function parseImportFile(file){
         const rawAmt=(!isNaN(debit)&&debit!==0)?debit:(!isNaN(credit)&&credit!==0)?-credit:0;
         if(rawAmt===0)continue;
         const isoDate=excelDateToISO(ds);if(!isoDate)continue;
-        window.importRows.push({id:Date.now()+'_'+window.importRows.length,date:isoDate,account:curAcc,
+        importRows.push({id:Date.now()+'_'+importRows.length,date:isoDate,account:curAcc,
           amount:Math.round(rawAmt*100)/100,vendor:(vendor||'').toString().trim(),
           type:'Τιμολόγιο',invoiceNo:(invoice||'').toString().trim(),
           clientInvoice:'',contractRef:'',clientRef:'',docLink:'',comment:(desc||'').toString().trim()});
@@ -862,61 +860,42 @@ function parseImportFile(file){
 
 function showImportPreview(){
   const area=document.getElementById('import-preview-area');
-  if(!window.importRows.length){area.innerHTML='<p style="color:var(--text3);margin-top:16px">Δεν βρέθηκαν εγγραφές.</p>';return;}
-  const total=window.importRows.reduce((s,r)=>s+r.amount,0);
+  if(!importRows.length){area.innerHTML='<p style="color:var(--text3);margin-top:16px">Δεν βρέθηκαν εγγραφές.</p>';return;}
+  const total=importRows.reduce((s,r)=>s+r.amount,0);
   area.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:10px">
-    <div style="font-size:12px;color:var(--text2)">Βρέθηκαν <strong>${window.importRows.length}</strong> εγγραφές · Σύνολο: <strong style="color:var(--red)">${fEur(total)}</strong></div>
+    <div style="font-size:12px;color:var(--text2)">Βρέθηκαν <strong>${importRows.length}</strong> εγγραφές · Σύνολο: <strong style="color:var(--red)">${fEur(total)}</strong></div>
     <button class="btn btn-primary" onclick="confirmImport()">✅ Εισαγωγή όλων</button>
   </div>
   <div class="import-preview"><table>
     <thead><tr><th>Ημερομηνία</th><th>Λογαριασμός</th><th>Παραστατικό</th><th>Προμηθευτής</th><th style="text-align:right">Ποσό</th></tr></thead>
-    <tbody>${window.importRows.slice(0,10).map(r=>`<tr><td>${fDate(r.date)}</td><td style="color:var(--red);font-weight:700">${r.account}</td><td style="color:var(--text3)">${r.invoiceNo}</td><td>${(r.vendor||'').substring(0,40)}</td><td style="text-align:right;font-weight:600">${fEur(r.amount)}</td></tr>`).join('')}</tbody>
+    <tbody>${importRows.slice(0,10).map(r=>`<tr><td>${fDate(r.date)}</td><td style="color:var(--red);font-weight:700">${r.account}</td><td style="color:var(--text3)">${r.invoiceNo}</td><td>${(r.vendor||'').substring(0,40)}</td><td style="text-align:right;font-weight:600">${fEur(r.amount)}</td></tr>`).join('')}</tbody>
   </table></div>`;
 }
 
 async function confirmImport(){
-  if(!window.importRows.length||!confirm(`Εισαγωγή ${window.importRows.length} εγγραφών;`))return;
+  if(!importRows.length||!confirm(`Εισαγωγή ${importRows.length} εγγραφών;`))return;
   setStatus('Εισαγωγή...',true);
   try{
-    for(let i=0;i<window.importRows.length;i+=50){
-      const chunk=window.importRows.slice(i,i+50).map(r=>[r.id,r.date,r.account,r.amount,r.vendor,r.type,r.invoiceNo,r.clientInvoice,r.contractRef,r.clientRef,r.docLink,r.comment]);
+    for(let i=0;i<importRows.length;i+=50){
+      const chunk=importRows.slice(i,i+50).map(r=>[r.id,r.date,r.account,r.amount,r.vendor,r.type,r.invoiceNo,r.clientInvoice,r.contractRef,r.clientRef,r.docLink,r.comment]);
       await appendValues(SH.exp,chunk);
     }
-    window.importRows=[];document.getElementById('import-preview-area').innerHTML='';document.getElementById('import-file').value='';
+    importRows=[];document.getElementById('import-preview-area').innerHTML='';document.getElementById('import-file').value='';
     await loadData();showTab('list');toast('Εισαγωγή ολοκληρώθηκε!','success');
   }catch(e){toast('Σφάλμα: '+e.message,'error');setStatus('Σφάλμα',false);}
 }
 
 // ── UI ────────────────────────────────────────────────────────
 function showTab(name){
-  ['list','import','window.accounts'].forEach(t=>{document.getElementById('tab-'+t).style.display=t===name?'block':'none';});
-  document.querySelectorAll('.tab').forEach((el,i)=>{el.classList.toggle('active',['list','import','window.accounts'][i]===name);});
+  ['list','import','accounts'].forEach(t=>{document.getElementById('tab-'+t).style.display=t===name?'block':'none';});
+  document.querySelectorAll('.tab').forEach((el,i)=>{el.classList.toggle('active',['list','import','accounts'][i]===name);});
 }
 function setStatus(msg,loading){document.getElementById('status-text').textContent=msg;document.getElementById('status-dot').className='dot'+(loading?' loading':'');}
 function toast(msg,type='success'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+type;setTimeout(()=>el.className='',3500);}
 
 document.getElementById('form-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeForm();});
 document.getElementById('detail-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDetail();});
-window.addEventListener('load',()=>{
-  // Always init token client first
-  initTokenClient();
-  const stored=sessionStorage.getItem('gtoken');
-  if(stored){
-    fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+stored}})
-      .then(r=>r.ok?r.json():Promise.reject('expired'))
-      .then(info=>{
-        window.accessToken=stored;
-        document.getElementById('user-name').textContent=info.email||'';
-        document.getElementById('login-screen').style.display='none';
-        document.getElementById('app').style.display='block';
-        initSheets().then(()=>loadData());
-      })
-      .catch(()=>{
-        sessionStorage.removeItem('gtoken');
-        document.getElementById('login-screen').style.display='flex';
-      });
-  }
-});
+window.addEventListener('load',()=>{if(sessionStorage.getItem('gtoken'))signIn();});
 </script>
 </body>
 </html>
