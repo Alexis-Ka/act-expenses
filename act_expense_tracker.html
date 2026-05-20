@@ -249,16 +249,6 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
             </select>
             <input type="text" id="rf-cli-val" placeholder="..." style="width:100px;font-size:11px" oninput="renderList()">
           </div>
-          <div style="display:flex;gap:4px;align-items:center">
-            <span style="font-size:10px;color:var(--text3)">Σχόλιο</span>
-            <select id="rf-com-mode" style="width:110px;font-size:11px" onchange="renderList()">
-              <option value="all">Όλα</option>
-              <option value="contains">Περιέχει</option>
-              <option value="empty">Κενό</option>
-              <option value="notempty">Μη κενό</option>
-            </select>
-            <input type="text" id="rf-com-val" placeholder="..." style="width:100px;font-size:11px" oninput="renderList()">
-          </div>
         </div>
         <div class="active-filters" id="active-filters"></div>
       </div>
@@ -451,24 +441,14 @@ async function loadData(){
   setStatus('Φόρτωση...',true);
   try{
     const[eR,aR]=await Promise.all([getValues(SH.exp+'!A2:L10000'),getValues(SH.acc+'!A2:B1000')]);
-    expenses=((eR.values)||[]).map(r=>{
-      // Support both old 11-col and new 12-col format
-      const is12=(r.length>=12&&(r[7]||'').toString().trim()!==''&&!(r[7]||'').toString().includes('/'));
-      // Heuristic: if col7 looks like a contract/client ref (not an invoice number), it's old format
-      // Safer: check if we have 12 meaningful cols by seeing if col11 exists
-      const has12=r.length>=12;
-      return {
-        id:r[0]||'',date:r[1]||'',account:r[2]||'',
-        amount:Math.round(parseAmount(r[3])*100)/100,
-        vendor:r[4]||'',type:r[5]||'Τιμολόγιο',
-        invoiceNo:r[6]||'',
-        clientInvoice:has12?r[7]||'':'',
-        contractRef:has12?r[8]||'':r[7]||'',
-        clientRef:has12?r[9]||'':r[8]||'',
-        docLink:has12?r[10]||'':r[9]||'',
-        comment:has12?r[11]||'':r[10]||''
-      };
-    }).filter(e=>e.id);
+    expenses=((eR.values)||[]).map(r=>({
+      id:r[0]||'',date:r[1]||'',account:r[2]||'',
+      amount:Math.round(parseFloat(r[3])*100)/100||0,
+      vendor:r[4]||'',type:r[5]||'Τιμολόγιο',
+      invoiceNo:r[6]||'',clientInvoice:r[7]||'',
+      contractRef:r[8]||'',clientRef:r[9]||'',
+      docLink:r[10]||'',comment:r[11]||''
+    })).filter(e=>e.id);
     accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
     renderAll();
     setStatus('Συνδεδεμένος · '+expenses.length+' εγγραφές',false);
@@ -476,25 +456,6 @@ async function loadData(){
 }
 
 // ── FORMAT ────────────────────────────────────────────────────
-function parseAmount(v){
-  if(v===null||v===undefined||v==='')return 0;
-  if(typeof v==='number')return v;
-  const s=v.toString().trim().replace(/[€\s]/g,'');
-  if(!s)return 0;
-  // Count dots and commas
-  const dots=( s.match(/\./g)||[]).length;
-  const commas=(s.match(/,/g)||[]).length;
-  // Multiple dots = thousands separators, last comma = decimal: 1.234.567,89
-  if(dots>=1&&commas===1&&s.lastIndexOf(',')>s.lastIndexOf('.'))
-    return parseFloat(s.replace(/\./g,'').replace(',','.'));
-  // Multiple commas = thousands separators, last dot = decimal: 1,234,567.89
-  if(commas>=1&&dots===1&&s.lastIndexOf('.')>s.lastIndexOf(','))
-    return parseFloat(s.replace(/,/g,''));
-  // Only comma, no dot: decimal comma 1700,50
-  if(commas===1&&dots===0)return parseFloat(s.replace(',','.'));
-  // Only dot or plain number
-  return parseFloat(s.replace(/,/g,''))||0;
-}
 function fEur(n){return new Intl.NumberFormat('el-GR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);}
 function fDate(d){if(!d)return'—';try{return new Date(d).toLocaleDateString('el-GR');}catch{return d;}}
 
@@ -559,8 +520,10 @@ function getFiltered(){
   const vendor=(document.getElementById('f-vendor').value||'').toLowerCase();
   const dateFrom=document.getElementById('f-date-from').value;
   const dateTo=document.getElementById('f-date-to').value;
-  const amtFrom=parseAmount(document.getElementById('f-amt-from').value);
-  const amtTo=parseAmount(document.getElementById('f-amt-to').value);
+  const amtFromRaw=document.getElementById('f-amt-from').value;
+  const amtToRaw=document.getElementById('f-amt-to').value;
+  const amtFrom=amtFromRaw===''?NaN:parseFloat(amtFromRaw);
+  const amtTo=amtToRaw===''?NaN:parseFloat(amtToRaw);
   const type=document.getElementById('f-type').value;
   const topN=parseInt(document.getElementById('f-topn').value)||0;
   const rfInvMode=document.getElementById('rf-inv-mode').value;
@@ -569,8 +532,6 @@ function getFiltered(){
   const rfConVal=document.getElementById('rf-con-val').value;
   const rfCliMode=document.getElementById('rf-cli-mode').value;
   const rfCliVal=document.getElementById('rf-cli-val').value;
-  const rfComMode=document.getElementById('rf-com-mode').value;
-  const rfComVal=document.getElementById('rf-com-val').value;
 
   let result=expenses.filter(e=>{
     if(accVal){const acc=e.account.toLowerCase();if(accMode==='begins'&&!acc.startsWith(accVal))return false;if(accMode==='contains'&&!acc.includes(accVal))return false;if(accMode==='exact'&&acc!==accVal)return false;}
@@ -583,13 +544,12 @@ function getFiltered(){
     if(!applyRefFilter(e.clientInvoice,rfInvMode,rfInvVal))return false;
     if(!applyRefFilter(e.contractRef,rfConMode,rfConVal))return false;
     if(!applyRefFilter(e.clientRef,rfCliMode,rfCliVal))return false;
-    if(!applyRefFilter(e.comment,rfComMode,rfComVal))return false;
     return true;
   });
 
   result.sort((a,b)=>{
     let va=a[sortCol],vb=b[sortCol];
-    if(sortCol==='amount'){va=parseAmount(va);vb=parseAmount(vb);}
+    if(sortCol==='amount'){va=parseFloat(va)||0;vb=parseFloat(vb)||0;}
     else{va=(va||'').toString();vb=(vb||'').toString();}
     return va<vb?-sortDir:va>vb?sortDir:0;
   });
@@ -683,9 +643,9 @@ function renderActiveFilters(){
   if(type)chips.push({label:type,clear:()=>{document.getElementById('f-type').value='';}});
   const topn=document.getElementById('f-topn').value;
   if(topn!=='0')chips.push({label:`Top ${topn}`,clear:()=>{document.getElementById('f-topn').value='0';}});
-  ['inv','con','cli','com'].forEach(k=>{
+  ['inv','con','cli'].forEach(k=>{
     const mode=document.getElementById(`rf-${k}-mode`).value,val=document.getElementById(`rf-${k}-val`).value;
-    const name={inv:'Αρ.Παρ.Πελάτη',con:'Contract',cli:'Πελάτης',com:'Σχόλιο'}[k];
+    const name={inv:'Αρ.Παρ.Πελάτη',con:'Contract',cli:'Πελάτης'}[k];
     if(mode!=='all')chips.push({label:`${name}: ${mode==='empty'?'κενό':mode==='notempty'?'μη κενό':`"${val}"`}`,clear:(kk=>()=>{document.getElementById(`rf-${kk}-mode`).value='all';document.getElementById(`rf-${kk}-val`).value='';})(k)});
   });
   const el=document.getElementById('active-filters');
@@ -696,8 +656,8 @@ function renderActiveFilters(){
 function clearChip(i){const chips=document.getElementById('active-filters')._chips||[];if(chips[i]){chips[i].clear();renderList();}}
 
 function clearFilters(){
-  ['f-acc-val','f-vendor','f-date-from','f-date-to','f-amt-from','f-amt-to','rf-inv-val','rf-con-val','rf-cli-val','rf-com-val'].forEach(id=>document.getElementById(id).value='');
-  ['f-acc-mode','f-type','f-topn','rf-inv-mode','rf-con-mode','rf-cli-mode','rf-com-mode'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=el.options[0].value;});
+  ['f-acc-val','f-vendor','f-date-from','f-date-to','f-amt-from','f-amt-to','rf-inv-val','rf-con-val','rf-cli-val'].forEach(id=>document.getElementById(id).value='');
+  ['f-acc-mode','f-type','f-topn','rf-inv-mode','rf-con-mode','rf-cli-mode'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=el.options[0].value;});
   renderList();
 }
 
@@ -737,8 +697,7 @@ function closeForm(){document.getElementById('form-overlay').classList.remove('o
 async function submitForm(){
   const date=document.getElementById('f-date').value;
   const account=document.getElementById('f-account2').value;
-  const rawVal=document.getElementById('f-amount').value;
-  const amount=Math.round(parseAmount(rawVal)*100)/100;
+  const amount=Math.round(parseFloat(document.getElementById('f-amount').value)*100)/100;
   if(!date||!account||isNaN(amount)){toast('Συμπλήρωσε τα υποχρεωτικά (*)','error');return;}
   const row=[
     editingId||Date.now().toString(),date,account,amount,
@@ -842,7 +801,7 @@ function parseImportFile(file){
         const r=raw[i];
         if(r[1]&&typeof r[1]==='string'&&/^\d{2}\.\d{2}/.test(r[1].trim())&&r[2]){curAcc=r[1].trim();continue;}
         const aa=r[1],ds=r[2],invoice=r[3],desc=r[4];
-        const debit=parseAmount(r[5]),credit=parseAmount(r[6]),vendor=r[11];
+        const debit=parseFloat(r[5]),credit=parseFloat(r[6]),vendor=r[11];
         if(!curAcc||typeof aa!=='number'||aa<=0||!ds||isNaN(ds))continue;
         const rawAmt=(!isNaN(debit)&&debit!==0)?debit:(!isNaN(credit)&&credit!==0)?-credit:0;
         if(rawAmt===0)continue;
