@@ -453,7 +453,7 @@ async function loadData(){
     const[eR,aR]=await Promise.all([getValues(SH.exp+'!A2:L10000'),getValues(SH.acc+'!A2:B1000')]);
     expenses=((eR.values)||[]).map(r=>({
       id:r[0]||'',date:r[1]||'',account:r[2]||'',
-      amount:Math.round(parseFloat(r[3])*100)/100||0,
+      amount:Math.round(parseAmount(r[3])*100)/100,
       vendor:r[4]||'',type:r[5]||'Τιμολόγιο',
       invoiceNo:r[6]||'',clientInvoice:r[7]||'',
       contractRef:r[8]||'',clientRef:r[9]||'',
@@ -466,6 +466,17 @@ async function loadData(){
 }
 
 // ── FORMAT ────────────────────────────────────────────────────
+function parseAmount(v){
+  if(v===null||v===undefined||v==='')return 0;
+  if(typeof v==='number')return v;
+  // Handle Greek locale (comma as decimal) and plain strings
+  const s=v.toString().trim().replace(/\s/g,'');
+  // If has both dot and comma, dot is thousands separator
+  if(s.includes('.')&&s.includes(','))return parseFloat(s.replace(/\./g,'').replace(',','.'));
+  // If only comma, it's decimal separator
+  if(s.includes(',')&&!s.includes('.'))return parseFloat(s.replace(',','.'));
+  return parseFloat(s)||0;
+}
 function fEur(n){return new Intl.NumberFormat('el-GR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);}
 function fDate(d){if(!d)return'—';try{return new Date(d).toLocaleDateString('el-GR');}catch{return d;}}
 
@@ -530,8 +541,8 @@ function getFiltered(){
   const vendor=(document.getElementById('f-vendor').value||'').toLowerCase();
   const dateFrom=document.getElementById('f-date-from').value;
   const dateTo=document.getElementById('f-date-to').value;
-  const amtFrom=parseFloat(document.getElementById('f-amt-from').value);
-  const amtTo=parseFloat(document.getElementById('f-amt-to').value);
+  const amtFrom=parseAmount(document.getElementById('f-amt-from').value);
+  const amtTo=parseAmount(document.getElementById('f-amt-to').value);
   const type=document.getElementById('f-type').value;
   const topN=parseInt(document.getElementById('f-topn').value)||0;
   const rfInvMode=document.getElementById('rf-inv-mode').value;
@@ -560,7 +571,7 @@ function getFiltered(){
 
   result.sort((a,b)=>{
     let va=a[sortCol],vb=b[sortCol];
-    if(sortCol==='amount'){va=parseFloat(va)||0;vb=parseFloat(vb)||0;}
+    if(sortCol==='amount'){va=parseAmount(va);vb=parseAmount(vb);}
     else{va=(va||'').toString();vb=(vb||'').toString();}
     return va<vb?-sortDir:va>vb?sortDir:0;
   });
@@ -708,7 +719,8 @@ function closeForm(){document.getElementById('form-overlay').classList.remove('o
 async function submitForm(){
   const date=document.getElementById('f-date').value;
   const account=document.getElementById('f-account2').value;
-  const amount=Math.round(parseFloat(document.getElementById('f-amount').value)*100)/100;
+  const rawVal=document.getElementById('f-amount').value;
+  const amount=Math.round(parseAmount(rawVal)*100)/100;
   if(!date||!account||isNaN(amount)){toast('Συμπλήρωσε τα υποχρεωτικά (*)','error');return;}
   const row=[
     editingId||Date.now().toString(),date,account,amount,
@@ -812,7 +824,7 @@ function parseImportFile(file){
         const r=raw[i];
         if(r[1]&&typeof r[1]==='string'&&/^\d{2}\.\d{2}/.test(r[1].trim())&&r[2]){curAcc=r[1].trim();continue;}
         const aa=r[1],ds=r[2],invoice=r[3],desc=r[4];
-        const debit=parseFloat(r[5]),credit=parseFloat(r[6]),vendor=r[11];
+        const debit=parseAmount(r[5]),credit=parseAmount(r[6]),vendor=r[11];
         if(!curAcc||typeof aa!=='number'||aa<=0||!ds||isNaN(ds))continue;
         const rawAmt=(!isNaN(debit)&&debit!==0)?debit:(!isNaN(credit)&&credit!==0)?-credit:0;
         if(rawAmt===0)continue;
