@@ -452,23 +452,30 @@ async function loadData(){
   try{
     const[eR,aR]=await Promise.all([getValues(SH.exp+'!A2:L10000'),getValues(SH.acc+'!A2:B1000')]);
     expenses=((eR.values)||[]).map(r=>{
-      // Support both old 11-col and new 12-col format
-      const is12=(r.length>=12&&(r[7]||'').toString().trim()!==''&&!(r[7]||'').toString().includes('/'));
-      // Heuristic: if col7 looks like a contract/client ref (not an invoice number), it's old format
-      // Safer: check if we have 12 meaningful cols by seeing if col11 exists
-      const has12=r.length>=12;
+      if(!r||!r[0])return null;
+      // Detect format: if r[7] looks like an invoice (contains letters+slash) = new 12-col
+      // Old 11-col: ID,Date,Acc,Amt,Vendor,Type,InvoiceNo,Contract,Client,Link,Comment
+      // New 12-col: ID,Date,Acc,Amt,Vendor,Type,InvoiceNo,ClientInvoice,Contract,Client,Link,Comment
+      const col7=(r[7]||'').toString().trim();
+      const col11=(r[11]||'').toString().trim();
+      // If col11 exists with content OR col7 looks like an invoice number → 12-col
+      const is12=col11!==''||(col7!==''&&/[A-Z]{2,}/.test(col7));
+      const amt=parseAmount(r[3]);
       return {
-        id:r[0]||'',date:r[1]||'',account:r[2]||'',
-        amount:Math.round(parseAmount(r[3])*100)/100,
-        vendor:r[4]||'',type:r[5]||'Τιμολόγιο',
+        id:r[0]||'',
+        date:r[1]||'',
+        account:r[2]||'',
+        amount:isNaN(amt)?0:Math.round(amt*100)/100,
+        vendor:r[4]||'',
+        type:r[5]||'Τιμολόγιο',
         invoiceNo:r[6]||'',
-        clientInvoice:has12?r[7]||'':'',
-        contractRef:has12?r[8]||'':r[7]||'',
-        clientRef:has12?r[9]||'':r[8]||'',
-        docLink:has12?r[10]||'':r[9]||'',
-        comment:has12?r[11]||'':r[10]||''
+        clientInvoice:is12?(r[7]||''):'',
+        contractRef:is12?(r[8]||''):(r[7]||''),
+        clientRef:is12?(r[9]||''):(r[8]||''),
+        docLink:is12?(r[10]||''):(r[9]||''),
+        comment:is12?(r[11]||''):(r[10]||'')
       };
-    }).filter(e=>e.id);
+    }).filter(e=>e&&e.id);
     accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
     renderAll();
     setStatus('Συνδεδεμένος · '+expenses.length+' εγγραφές',false);
@@ -477,23 +484,24 @@ async function loadData(){
 
 // ── FORMAT ────────────────────────────────────────────────────
 function parseAmount(v){
-  if(v===null||v===undefined||v==='')return 0;
-  if(typeof v==='number')return v;
-  const s=v.toString().trim().replace(/[€\s]/g,'');
-  if(!s)return 0;
-  // Count dots and commas
-  const dots=( s.match(/\./g)||[]).length;
-  const commas=(s.match(/,/g)||[]).length;
-  // Multiple dots = thousands separators, last comma = decimal: 1.234.567,89
-  if(dots>=1&&commas===1&&s.lastIndexOf(',')>s.lastIndexOf('.'))
-    return parseFloat(s.replace(/\./g,'').replace(',','.'));
-  // Multiple commas = thousands separators, last dot = decimal: 1,234,567.89
-  if(commas>=1&&dots===1&&s.lastIndexOf('.')>s.lastIndexOf(','))
-    return parseFloat(s.replace(/,/g,''));
-  // Only comma, no dot: decimal comma 1700,50
-  if(commas===1&&dots===0)return parseFloat(s.replace(',','.'));
-  // Only dot or plain number
-  return parseFloat(s.replace(/,/g,''))||0;
+  try{
+    if(v===null||v===undefined||v==='')return 0;
+    if(typeof v==='number')return isNaN(v)?0:v;
+    const s=v.toString().trim().replace(/[€\u20ac\s]/g,'');
+    if(!s||s==='-')return 0;
+    const dots=(s.match(/\./g)||[]).length;
+    const commas=(s.match(/,/g)||[]).length;
+    let n;
+    if(dots>=1&&commas===1&&s.lastIndexOf(',')>s.lastIndexOf('.'))
+      n=parseFloat(s.replace(/\./g,'').replace(',','.'));
+    else if(commas>=1&&dots===1&&s.lastIndexOf('.')>s.lastIndexOf(','))
+      n=parseFloat(s.replace(/,/g,''));
+    else if(commas===1&&dots===0)
+      n=parseFloat(s.replace(',','.'));
+    else
+      n=parseFloat(s.replace(/,/g,''));
+    return isNaN(n)?0:n;
+  }catch(e){return 0;}
 }
 function fEur(n){return new Intl.NumberFormat('el-GR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);}
 function fDate(d){if(!d)return'—';try{return new Date(d).toLocaleDateString('el-GR');}catch{return d;}}
