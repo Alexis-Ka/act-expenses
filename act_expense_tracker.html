@@ -166,7 +166,7 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
                 <option value="contains">Περιέχει</option>
                 <option value="exact">Ακριβώς</option>
               </select>
-              <input type="text" id="f-acc-val" placeholder="π.χ. 61" style="width:90px" oninput="renderList()">
+              <input type="text" id="f-acc-val" value="" placeholder="61..." style="width:90px" oninput="renderList()">
             </div>
           </div>
           <div class="filter-sep"></div>
@@ -372,7 +372,11 @@ const SHEET_ID='1lb0ZobAdQVkoFji_MJAMm5df5ua0IfwRp7CHaa2BPvk';
 const SCOPES='https://www.googleapis.com/auth/spreadsheets';
 const SH={exp:'Expenses',acc:'Accounts'};
 
-let tokenClient,accessToken=null,expenses=[],accounts=[],editingId=null,importRows=[];
+let tokenClient,accessToken=null,editingId=null,importRows=[];
+window.expenses=[];
+window.accounts=[];
+let expenses=window.expenses;
+let accounts=window.accounts;
 let sortCol='date',sortDir=-1;
 
 // Column definitions — order is drag-droppable for ref cols
@@ -382,7 +386,7 @@ let colOrder=[...REF_COLS];
 let hiddenCols=new Set();
 
 // ── AUTH ──────────────────────────────────────────────────────
-function signIn(){
+function initTokenClient(){
   tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:CLIENT_ID,scope:SCOPES,
     callback:async(resp)=>{
@@ -396,7 +400,10 @@ function signIn(){
       await initSheets();await loadData();
     }
   });
-  tokenClient.requestAccessToken();
+}
+function signIn(){
+  if(!tokenClient)initTokenClient();
+  tokenClient.requestAccessToken({prompt:'select_account'});
 }
 function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);accessToken=null;sessionStorage.removeItem('gtoken');document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none';}
 
@@ -437,7 +444,8 @@ async function loadData(){
   setStatus('Φόρτωση...',true);
   try{
     const[eR,aR]=await Promise.all([getValues(SH.exp+'!A2:L10000'),getValues(SH.acc+'!A2:B1000')]);
-    expenses=((eR.values)||[]).map(r=>{
+    window.expenses=((eR.values)||[]).map(r=>{
+    expenses=window.expenses;
       if(!r||!r[0])return null;
       // Detect format: if r[7] looks like an invoice (contains letters+slash) = new 12-col
       // Old 11-col: ID,Date,Acc,Amt,Vendor,Type,InvoiceNo,Contract,Client,Link,Comment
@@ -462,7 +470,8 @@ async function loadData(){
         comment:is12?(r[11]||''):(r[10]||'')
       };
     }).filter(e=>e&&e.id);
-    accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
+    window.accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
+    accounts=window.accounts;
     renderAll();
     setStatus('Συνδεδεμένος · '+expenses.length+' εγγραφές',false);
   }catch(e){setStatus('Σφάλμα',false);toast('Σφάλμα φόρτωσης: '+e.message,'error');}
@@ -890,17 +899,12 @@ function toast(msg,type='success'){const el=document.getElementById('toast');el.
 document.getElementById('form-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeForm();});
 document.getElementById('detail-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDetail();});
 window.addEventListener('load',()=>{
+  // Always init token client first
+  initTokenClient();
   const stored=sessionStorage.getItem('gtoken');
   if(stored){
-    // Verify token before trying to use it
     fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+stored}})
-      .then(r=>{
-        if(r.ok)return r.json();
-        // Token expired - clear and show login
-        sessionStorage.removeItem('gtoken');
-        document.getElementById('login-screen').style.display='flex';
-        throw new Error('token expired');
-      })
+      .then(r=>r.ok?r.json():Promise.reject('expired'))
       .then(info=>{
         accessToken=stored;
         document.getElementById('user-name').textContent=info.email||'';
@@ -912,8 +916,6 @@ window.addEventListener('load',()=>{
         sessionStorage.removeItem('gtoken');
         document.getElementById('login-screen').style.display='flex';
       });
-  } else {
-    document.getElementById('login-screen').style.display='flex';
   }
 });
 </script>
