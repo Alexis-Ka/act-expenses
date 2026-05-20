@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ACT · Expense Tracker</title>
-<script src="https://accounts.google.com/gsi/client"></script>
+<script src="https://window.accounts.google.com/gsi/client"></script>
 <style>
 :root{--red:#E93423;--red-dark:#c42a1b;--bg:#f5f5f5;--bg2:#fff;--bg3:#f0f0f0;--border:#e0e0e0;--text:#1a1a1a;--text2:#555;--text3:#999;--green:#16a34a;--amber:#d97706;--blue:#2563eb;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -149,7 +149,7 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
   <div class="nav-tabs">
     <button class="tab active" onclick="showTab('list')">Δαπάνες</button>
     <button class="tab" onclick="showTab('import')">Import Softone</button>
-    <button class="tab" onclick="showTab('accounts')">Λογαριασμοί</button>
+    <button class="tab" onclick="showTab('window.accounts')">Λογαριασμοί</button>
   </div>
   <main>
     <div id="tab-list">
@@ -298,11 +298,11 @@ input[type=text],input[type=number],input[type=date]{width:100%;}
     </div>
 
     <!-- ACCOUNTS TAB -->
-    <div id="tab-accounts" style="display:none">
+    <div id="tab-window.accounts" style="display:none">
       <div class="table-wrap" style="margin-bottom:16px">
         <table>
           <thead><tr><th>Κωδικός</th><th>Περιγραφή</th><th>Σύνολο</th><th>Εγγραφές</th><th></th></tr></thead>
-          <tbody id="accounts-tbody"></tbody>
+          <tbody id="window.accounts-tbody"></tbody>
         </table>
       </div>
       <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;">
@@ -375,8 +375,6 @@ const SH={exp:'Expenses',acc:'Accounts'};
 let tokenClient,accessToken=null,editingId=null,importRows=[];
 window.expenses=[];
 window.accounts=[];
-let expenses=window.expenses;
-let accounts=window.accounts;
 let sortCol='date',sortDir=-1;
 
 // Column definitions — order is drag-droppable for ref cols
@@ -387,7 +385,7 @@ let hiddenCols=new Set();
 
 // ── AUTH ──────────────────────────────────────────────────────
 function initTokenClient(){
-  tokenClient=google.accounts.oauth2.initTokenClient({
+  tokenClient=google.window.accounts.oauth2.initTokenClient({
     client_id:CLIENT_ID,scope:SCOPES,
     callback:async(resp)=>{
       if(resp.error){toast('Σφάλμα: '+resp.error,'error');return;}
@@ -405,7 +403,7 @@ function signIn(){
   if(!tokenClient)initTokenClient();
   tokenClient.requestAccessToken({prompt:'select_account'});
 }
-function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);accessToken=null;sessionStorage.removeItem('gtoken');document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none';}
+function signOut(){if(accessToken)google.window.accounts.oauth2.revoke(accessToken);accessToken=null;sessionStorage.removeItem('gtoken');document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none';}
 
 // ── SHEETS API ────────────────────────────────────────────────
 async function api(method,path,body){
@@ -445,7 +443,6 @@ async function loadData(){
   try{
     const[eR,aR]=await Promise.all([getValues(SH.exp+'!A2:L10000'),getValues(SH.acc+'!A2:B1000')]);
     window.expenses=((eR.values)||[]).map(r=>{
-    expenses=window.expenses;
       if(!r||!r[0])return null;
       // Detect format: if r[7] looks like an invoice (contains letters+slash) = new 12-col
       // Old 11-col: ID,Date,Acc,Amt,Vendor,Type,InvoiceNo,Contract,Client,Link,Comment
@@ -471,9 +468,8 @@ async function loadData(){
       };
     }).filter(e=>e&&e.id);
     window.accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
-    accounts=window.accounts;
     renderAll();
-    setStatus('Συνδεδεμένος · '+expenses.length+' εγγραφές',false);
+    setStatus('Συνδεδεμένος · '+window.expenses.length+' εγγραφές',false);
   }catch(e){setStatus('Σφάλμα',false);toast('Σφάλμα φόρτωσης: '+e.message,'error');}
 }
 
@@ -575,7 +571,7 @@ function getFiltered(){
   const rfComMode=document.getElementById('rf-com-mode').value;
   const rfComVal=document.getElementById('rf-com-val').value;
 
-  let result=expenses.filter(e=>{
+  let result=window.expenses.filter(e=>{
     if(accVal){const acc=e.account.toLowerCase();if(accMode==='begins'&&!acc.startsWith(accVal))return false;if(accMode==='contains'&&!acc.includes(accVal))return false;if(accMode==='exact'&&acc!==accVal)return false;}
     if(vendor&&!(e.vendor||'').toLowerCase().includes(vendor))return false;
     if(dateFrom&&e.date<dateFrom)return false;
@@ -613,7 +609,7 @@ function renderSummary(){
   filtered.forEach(e=>{if(!byAcc[e.account])byAcc[e.account]={t:0,c:0};byAcc[e.account].t+=e.amount;byAcc[e.account].c++;});
   const top=Object.entries(byAcc).sort((a,b)=>b[1].t-a[1].t).slice(0,4);
   let h=`<div class="summary-card"><div class="lbl">Σύνολο φίλτρων</div><div class="val">${fEur(total)}</div><div class="sub">${filtered.length} εγγραφές</div></div>`;
-  top.forEach(([code,d])=>{const a=accounts.find(x=>x.code===code);h+=`<div class="summary-card"><div class="lbl">${code}</div><div class="val">${fEur(d.t)}</div><div class="sub">${a?a.label:''} · ${d.c} εγγρ.</div></div>`;});
+  top.forEach(([code,d])=>{const a=window.accounts.find(x=>x.code===code);h+=`<div class="summary-card"><div class="lbl">${code}</div><div class="val">${fEur(d.t)}</div><div class="sub">${a?a.label:''} · ${d.c} εγγρ.</div></div>`;});
   document.getElementById('summary-grid').innerHTML=h;
 }
 
@@ -646,7 +642,7 @@ function renderList(){
   }
 
   tbody.innerHTML=filtered.map(e=>{
-    const acc=accounts.find(a=>a.code===e.account);
+    const acc=window.accounts.find(a=>a.code===e.account);
     return`<tr onclick="openDetail('${e.id}')">${cols.map(c=>{
       switch(c){
         case'date':return`<td><div style="font-weight:600">${fDate(e.date)}</div><div style="margin-top:2px"><span class="badge badge-gray">${e.type}</span></div></td>`;
@@ -705,16 +701,16 @@ function clearFilters(){
 }
 
 function renderAccountsTab(){
-  document.getElementById('accounts-tbody').innerHTML=accounts.map((a,i)=>{
-    const total=expenses.filter(e=>e.account===a.code).reduce((s,e)=>s+e.amount,0);
-    const count=expenses.filter(e=>e.account===a.code).length;
+  document.getElementById('window.accounts-tbody').innerHTML=window.accounts.map((a,i)=>{
+    const total=window.expenses.filter(e=>e.account===a.code).reduce((s,e)=>s+e.amount,0);
+    const count=window.expenses.filter(e=>e.account===a.code).length;
     return`<tr><td style="color:var(--red);font-weight:700">${a.code}</td><td>${a.label}</td><td style="font-weight:600">${fEur(total)}</td><td style="color:var(--text3)">${count}</td><td><button class="btn btn-ghost btn-sm" onclick="deleteAccount(${i})">✕</button></td></tr>`;
   }).join('');
 }
 
 function populateSelects(){
   const dl=document.getElementById('account-list');
-  if(dl)dl.innerHTML=accounts.map(a=>`<option value="${a.code}">${a.code} · ${a.label}</option>`).join('');
+  if(dl)dl.innerHTML=window.accounts.map(a=>`<option value="${a.code}">${a.code} · ${a.label}</option>`).join('');
 }
 
 // ── FORM ──────────────────────────────────────────────────────
@@ -757,7 +753,7 @@ async function submitForm(){
   const btn=document.getElementById('save-btn');
   btn.innerHTML='<span class="spinner"></span>';btn.disabled=true;
   try{
-    if(editingId){const idx=expenses.findIndex(e=>e.id===editingId);if(idx>=0)await updateValues(SH.exp+`!A${idx+2}:L${idx+2}`,[row]);}
+    if(editingId){const idx=window.expenses.findIndex(e=>e.id===editingId);if(idx>=0)await updateValues(SH.exp+`!A${idx+2}:L${idx+2}`,[row]);}
     else{await appendValues(SH.exp,[row]);}
     closeForm();await loadData();toast(editingId?'Αποθηκεύτηκε!':'Καταχωρήθηκε!','success');
   }catch(e){toast('Σφάλμα: '+e.message,'error');}
@@ -766,7 +762,7 @@ async function submitForm(){
 
 async function deleteExpense(){
   if(!editingId||!confirm('Διαγραφή εγγραφής;'))return;
-  const idx=expenses.findIndex(e=>e.id===editingId);if(idx<0)return;
+  const idx=window.expenses.findIndex(e=>e.id===editingId);if(idx<0)return;
   try{
     const sid=await getSheetIdByName(SH.exp);
     await batchUpd([{deleteDimension:{range:{sheetId:sid,dimension:'ROWS',startIndex:idx+1,endIndex:idx+2}}}]);
@@ -776,8 +772,8 @@ async function deleteExpense(){
 
 // ── DETAIL ────────────────────────────────────────────────────
 function openDetail(id){
-  const e=expenses.find(x=>x.id===id);if(!e)return;
-  const acc=accounts.find(a=>a.code===e.account);
+  const e=window.expenses.find(x=>x.id===id);if(!e)return;
+  const acc=window.accounts.find(a=>a.code===e.account);
   document.getElementById('detail-content').innerHTML=`
     <div class="modal-title">
       <div>
@@ -787,7 +783,7 @@ function openDetail(id){
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
         <button class="modal-close" onclick="closeDetail()">✕</button>
-        <button class="btn btn-ghost btn-sm" onclick="closeDetail();setTimeout(()=>openForm(expenses.find(x=>x.id==='${e.id}')),100)">✏️ Επεξεργασία</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeDetail();setTimeout(()=>openForm(window.expenses.find(x=>x.id==='${e.id}')),100)">✏️ Επεξεργασία</button>
       </div>
     </div>
     <div class="detail-grid">
@@ -890,8 +886,8 @@ async function confirmImport(){
 
 // ── UI ────────────────────────────────────────────────────────
 function showTab(name){
-  ['list','import','accounts'].forEach(t=>{document.getElementById('tab-'+t).style.display=t===name?'block':'none';});
-  document.querySelectorAll('.tab').forEach((el,i)=>{el.classList.toggle('active',['list','import','accounts'][i]===name);});
+  ['list','import','window.accounts'].forEach(t=>{document.getElementById('tab-'+t).style.display=t===name?'block':'none';});
+  document.querySelectorAll('.tab').forEach((el,i)=>{el.classList.toggle('active',['list','import','window.accounts'][i]===name);});
 }
 function setStatus(msg,loading){document.getElementById('status-text').textContent=msg;document.getElementById('status-dot').className='dot'+(loading?' loading':'');}
 function toast(msg,type='success'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+type;setTimeout(()=>el.className='',3500);}
