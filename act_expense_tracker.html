@@ -451,14 +451,24 @@ async function loadData(){
   setStatus('Φόρτωση...',true);
   try{
     const[eR,aR]=await Promise.all([getValues(SH.exp+'!A2:L10000'),getValues(SH.acc+'!A2:B1000')]);
-    expenses=((eR.values)||[]).map(r=>({
-      id:r[0]||'',date:r[1]||'',account:r[2]||'',
-      amount:Math.round(parseAmount(r[3])*100)/100,
-      vendor:r[4]||'',type:r[5]||'Τιμολόγιο',
-      invoiceNo:r[6]||'',clientInvoice:r[7]||'',
-      contractRef:r[8]||'',clientRef:r[9]||'',
-      docLink:r[10]||'',comment:r[11]||''
-    })).filter(e=>e.id);
+    expenses=((eR.values)||[]).map(r=>{
+      // Support both old 11-col and new 12-col format
+      const is12=(r.length>=12&&(r[7]||'').toString().trim()!==''&&!(r[7]||'').toString().includes('/'));
+      // Heuristic: if col7 looks like a contract/client ref (not an invoice number), it's old format
+      // Safer: check if we have 12 meaningful cols by seeing if col11 exists
+      const has12=r.length>=12;
+      return {
+        id:r[0]||'',date:r[1]||'',account:r[2]||'',
+        amount:Math.round(parseAmount(r[3])*100)/100,
+        vendor:r[4]||'',type:r[5]||'Τιμολόγιο',
+        invoiceNo:r[6]||'',
+        clientInvoice:has12?r[7]||'':'',
+        contractRef:has12?r[8]||'':r[7]||'',
+        clientRef:has12?r[9]||'':r[8]||'',
+        docLink:has12?r[10]||'':r[9]||'',
+        comment:has12?r[11]||'':r[10]||''
+      };
+    }).filter(e=>e.id);
     accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
     renderAll();
     setStatus('Συνδεδεμένος · '+expenses.length+' εγγραφές',false);
@@ -469,13 +479,21 @@ async function loadData(){
 function parseAmount(v){
   if(v===null||v===undefined||v==='')return 0;
   if(typeof v==='number')return v;
-  // Handle Greek locale (comma as decimal) and plain strings
-  const s=v.toString().trim().replace(/\s/g,'');
-  // If has both dot and comma, dot is thousands separator
-  if(s.includes('.')&&s.includes(','))return parseFloat(s.replace(/\./g,'').replace(',','.'));
-  // If only comma, it's decimal separator
-  if(s.includes(',')&&!s.includes('.'))return parseFloat(s.replace(',','.'));
-  return parseFloat(s)||0;
+  const s=v.toString().trim().replace(/[€\s]/g,'');
+  if(!s)return 0;
+  // Count dots and commas
+  const dots=( s.match(/\./g)||[]).length;
+  const commas=(s.match(/,/g)||[]).length;
+  // Multiple dots = thousands separators, last comma = decimal: 1.234.567,89
+  if(dots>=1&&commas===1&&s.lastIndexOf(',')>s.lastIndexOf('.'))
+    return parseFloat(s.replace(/\./g,'').replace(',','.'));
+  // Multiple commas = thousands separators, last dot = decimal: 1,234,567.89
+  if(commas>=1&&dots===1&&s.lastIndexOf('.')>s.lastIndexOf(','))
+    return parseFloat(s.replace(/,/g,''));
+  // Only comma, no dot: decimal comma 1700,50
+  if(commas===1&&dots===0)return parseFloat(s.replace(',','.'));
+  // Only dot or plain number
+  return parseFloat(s.replace(/,/g,''))||0;
 }
 function fEur(n){return new Intl.NumberFormat('el-GR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);}
 function fDate(d){if(!d)return'—';try{return new Date(d).toLocaleDateString('el-GR');}catch{return d;}}
