@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACT · Expense Tracker</title>
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+:root{--red:#E93423;--red-dark:#c42a1b;--bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#242424;--border:#2e2e2e;--text:#e8e8e8;--text2:#999;--text3:#555;--green:#22c55e;--amber:#f59e0b;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;font-size:13px;min-height:100vh;}
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:48px;text-align:center;max-width:400px;width:100%;}
+.login-logo{font-size:28px;font-weight:900;letter-spacing:4px;color:var(--text2);margin-bottom:8px;}
+.login-logo span{color:var(--red);}
+.login-sub{color:var(--text3);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:32px;}
+.login-btn{background:var(--red);color:white;border:none;padding:12px 28px;border-radius:6px;font-family:inherit;font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:700;cursor:pointer;}
+.login-btn:hover{background:var(--red-dark);}
+.login-note{color:var(--text3);font-size:10px;margin-top:16px;line-height:1.6;}
+#app{display:none;}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{font-size:13px;font-weight:900;letter-spacing:3px;color:var(--text2);text-transform:uppercase;}
+.logo span{color:var(--red);}
+.header-right{display:flex;align-items:center;gap:12px;}
+.user-badge{font-size:11px;color:var(--text3);}
+.btn{padding:6px 14px;border-radius:4px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;cursor:pointer;border:none;transition:all .15s;}
+.btn-primary{background:var(--red);color:white;}
+.btn-primary:hover{background:var(--red-dark);}
+.btn-ghost{background:var(--bg3);color:var(--text2);}
+.btn-ghost:hover{background:#2e2e2e;color:var(--text);}
+.btn-danger{background:#2a1010;color:#f87171;border:1px solid #3d1515;}
+.btn-danger:hover{background:#3d1515;}
+.btn-sm{padding:4px 10px;font-size:10px;}
+.nav-tabs{display:flex;gap:2px;padding:12px 24px 0;border-bottom:1px solid var(--border);background:var(--bg2);}
+.tab{padding:8px 16px;font-family:inherit;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--text3);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;}
+.tab.active{color:var(--red);border-bottom-color:var(--red);}
+.tab:hover:not(.active){color:var(--text2);}
+main{max-width:1200px;margin:0 auto;padding:24px;}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
+.summary-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;}
+.summary-card .lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;}
+.summary-card .val{font-size:20px;font-weight:900;color:var(--red);}
+.summary-card .sub{font-size:10px;color:var(--text3);margin-top:4px;}
+.filters{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+input,select,textarea{background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:inherit;font-size:12px;padding:7px 10px;outline:none;transition:border-color .15s;}
+input:focus,select:focus,textarea:focus{border-color:var(--red);}
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:700;}
+td{padding:10px 14px;border-top:1px solid rgba(46,46,46,.5);font-size:12px;vertical-align:middle;}
+tr:hover td{background:rgba(255,255,255,.02);cursor:pointer;}
+tfoot td{border-top:2px solid var(--border);font-weight:700;color:var(--red);}
+.empty{text-align:center;padding:60px;color:var(--text3);}
+.badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;border:1px solid;}
+.badge-gray{background:rgba(99,99,99,.15);color:var(--text3);border-color:var(--border);}
+.badge-green{background:rgba(34,197,94,.1);color:#4ade80;border-color:rgba(34,197,94,.3);}
+.badge-blue{background:rgba(59,130,246,.1);color:#93c5fd;border-color:rgba(59,130,246,.3);}
+.badge-amber{background:rgba(245,158,11,.1);color:#fcd34d;border-color:rgba(245,158,11,.3);}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;overflow-y:auto;padding:24px;}
+.overlay.open{display:flex;align-items:flex-start;justify-content:center;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;width:100%;max-width:760px;padding:28px;margin:auto;}
+.modal-title{font-size:15px;font-weight:900;letter-spacing:1px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;}
+.modal-close{background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;padding:4px;}
+.modal-close:hover{color:var(--text);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group.span2{grid-column:span 2;}
+label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;}
+.modal-actions{display:flex;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--border);}
+.section-title{font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:14px;margin-top:18px;}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.detail-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;}
+.detail-card h4{font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;}
+.detail-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);}
+.detail-row:last-child{border-bottom:none;}
+.detail-row .key{font-size:10px;color:var(--text3);}
+.detail-row .val{font-size:11px;color:var(--text);text-align:right;max-width:60%;word-break:break-all;}
+.comment-box{background:var(--bg3);border-radius:4px;padding:12px;font-size:12px;color:var(--text2);line-height:1.6;margin-top:8px;}
+.doc-link{display:flex;align-items:center;gap:10px;background:var(--bg3);border-radius:4px;padding:8px 12px;margin-top:6px;text-decoration:none;color:var(--text2);transition:background .15s;}
+.doc-link:hover{background:#2e2e2e;color:var(--text);}
+.import-zone{border:2px dashed var(--border);border-radius:8px;padding:48px;text-align:center;cursor:pointer;transition:all .15s;}
+.import-zone:hover,.import-zone.dragover{border-color:var(--red);}
+.import-preview{background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-top:16px;overflow:hidden;}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px 18px;font-size:12px;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s;max-width:320px;}
+#toast.show{transform:translateY(0);opacity:1;}
+#toast.success{border-color:rgba(34,197,94,.4);color:#4ade80;}
+#toast.error{border-color:rgba(233,52,35,.4);color:#fca5a5;}
+.status-bar{font-size:10px;color:var(--text3);display:flex;align-items:center;gap:8px;padding:6px 24px;background:var(--bg);border-bottom:1px solid var(--border);}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;}
+.dot.loading{background:var(--amber);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+textarea{resize:vertical;width:100%;}
+select{width:100%;}
+input[type=text],input[type=number],input[type=date]{width:100%;}
+@media(max-width:700px){.form-grid{grid-template-columns:1fr;}.form-group.span2{grid-column:span 1;}.detail-grid{grid-template-columns:1fr;}main{padding:12px;}}
+</style>
+</head>
+<body>
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo"><span>ACT</span> · EXPENSES</div>
+    <div class="login-sub">Expense Tracker · Secure</div>
+    <button class="login-btn" onclick="signIn()">🔐 Σύνδεση με Google</button>
+    <div class="login-note">Τα δεδομένα αποθηκεύονται στο Google Sheets σας.<br>Μόνο εξουσιοδοτημένοι χρήστες έχουν πρόσβαση.</div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="logo"><span>ACT</span> · EXPENSES</div>
+    <div class="header-right">
+      <span class="user-badge" id="user-name"></span>
+      <button class="btn btn-primary" onclick="openForm()">+ Νέα Δαπάνη</button>
+      <button class="btn btn-ghost btn-sm" onclick="signOut()">Έξοδος</button>
+    </div>
+  </header>
+  <div class="status-bar"><span class="dot" id="status-dot"></span><span id="status-text">Συνδεδεμένος</span></div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="showTab('list')">Δαπάνες</button>
+    <button class="tab" onclick="showTab('import')">Import Softone</button>
+    <button class="tab" onclick="showTab('accounts')">Λογαριασμοί</button>
+  </div>
+  <main>
+    <div id="tab-list">
+      <div class="summary-grid" id="summary-grid"></div>
+      <div class="filters">
+        <input style="flex:1;min-width:220px" type="text" placeholder="🔍 Αναζήτηση..." id="f-search" oninput="renderList()">
+        <select id="f-account" onchange="renderList()" style="width:220px"></select>
+        <select id="f-type" onchange="renderList()" style="width:150px">
+          <option value="">Όλοι οι τύποι</option>
+          <option>Τιμολόγιο</option><option>Σύμβαση</option><option>Δαπάνη</option>
+          <option>Μισθοδοσία</option><option>Φόρος</option><option>Άλλο</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="clearFilters()">✕ Καθαρισμός</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadData()">⟳</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Ημερομηνία</th><th>Λογαριασμός</th><th>Προμηθευτής</th>
+            <th>Παραστατικό</th><th>Παραπομπές</th>
+            <th style="text-align:right">Ποσό</th><th>Doc</th>
+          </tr></thead>
+          <tbody id="expense-tbody"></tbody>
+          <tfoot id="expense-tfoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-import" style="display:none">
+      <p style="color:var(--text3);font-size:11px;margin-bottom:16px;">Ανέβασε Excel εξαγωγή καρτελών λογαριασμών από το Softone. Αναγνωρίζει αυτόματα τη δομή.</p>
+      <div class="import-zone" id="import-zone" onclick="document.getElementById('import-file').click()"
+        ondragover="event.preventDefault();this.classList.add('dragover')"
+        ondragleave="this.classList.remove('dragover')"
+        ondrop="handleImportDrop(event)">
+        <div style="font-size:32px;margin-bottom:8px">📂</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px">Σύρε ή κλικ για επιλογή Excel</div>
+        <div style="font-size:10px;color:var(--text3)">Καρτέλες λογαριασμών Γεν. Λογιστικής (.xlsx)</div>
+      </div>
+      <input type="file" id="import-file" accept=".xlsx,.xls" onchange="handleImportFile(event)" style="display:none">
+      <div id="import-preview-area"></div>
+    </div>
+
+    <div id="tab-accounts" style="display:none">
+      <div class="table-wrap" style="margin-bottom:16px">
+        <table>
+          <thead><tr><th>Κωδικός</th><th>Περιγραφή</th><th>Σύνολο</th><th>Εγγραφές</th><th></th></tr></thead>
+          <tbody id="accounts-tbody"></tbody>
+        </table>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;">
+        <div class="section-title" style="margin-top:0">Νέος Λογαριασμός</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input type="text" id="new-acc-code" placeholder="π.χ. 64.02" style="width:120px">
+          <input type="text" id="new-acc-label" placeholder="Περιγραφή" style="flex:1;min-width:200px">
+          <button class="btn btn-primary" onclick="addAccount()">+ Προσθήκη</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- FORM MODAL -->
+<div class="overlay" id="form-overlay">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="form-title">Νέα Δαπάνη</span>
+      <button class="modal-close" onclick="closeForm()">✕</button>
+    </div>
+    <div class="section-title" style="margin-top:0">Βασικά Στοιχεία</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Ημερομηνία *</label><input type="date" id="f-date"></div>
+      <div class="form-group"><label>Τύπος</label>
+        <select id="f-type2"><option>Τιμολόγιο</option><option>Σύμβαση</option><option>Δαπάνη</option><option>Μισθοδοσία</option><option>Φόρος</option><option>Άλλο</option></select>
+      </div>
+      <div class="form-group span2"><label>Λογαριασμός Λογιστικής *</label><select id="f-account2"></select></div>
+      <div class="form-group"><label>Ποσό (€) *</label><input type="number" id="f-amount" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>Προμηθευτής</label><input type="text" id="f-vendor" placeholder="Επωνυμία"></div>
+    </div>
+    <div class="section-title">Παραπομπές</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Αρ. Παραστατικού</label><input type="text" id="f-invoice" placeholder="π.χ. ΤΠΥ/000064"></div>
+      <div class="form-group"><label>Contract Ref</label><input type="text" id="f-contract" placeholder="π.χ. ΣΥΜΒ-2024-089"></div>
+      <div class="form-group span2"><label>Πελάτης (cost from contract)</label><input type="text" id="f-client" placeholder="Επωνυμία ή κωδικός"></div>
+      <div class="form-group span2"><label>Link Εγγράφου (OneDrive / path)</label><input type="text" id="f-doclink" placeholder="https://... ή \\server\φάκελος\αρχείο.pdf"></div>
+      <div class="form-group span2"><label>Σχόλιο / Αιτιολογία</label><textarea id="f-comment" rows="3" placeholder="Περιγραφή, σύνδεση με εργασία..."></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="submitForm()" id="save-btn">Αποθήκευση</button>
+      <button class="btn btn-ghost" onclick="closeForm()">Ακύρωση</button>
+      <button class="btn btn-danger btn-sm" id="delete-btn" style="margin-left:auto;display:none" onclick="deleteExpense()">Διαγραφή</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="overlay" id="detail-overlay">
+  <div class="modal" id="detail-content"></div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const CLIENT_ID='753823172041-bdicr80j0p0749cgaqa4gmh6l4pkfh6o.apps.googleusercontent.com';
+const SHEET_ID='1lb0ZobAdQVkoFji_MJAMm5df5ua0IfwRp7CHaa2BPvk';
+const SCOPES='https://www.googleapis.com/auth/spreadsheets';
+const SH={exp:'Expenses',acc:'Accounts'};
+
+let tokenClient,accessToken=null,expenses=[],accounts=[],editingId=null,importRows=[];
+
+function signIn(){
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:CLIENT_ID,scope:SCOPES,
+    callback:async(resp)=>{
+      if(resp.error){toast('Σφάλμα: '+resp.error,'error');return;}
+      accessToken=resp.access_token;
+      const info=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}}).then(r=>r.json());
+      document.getElementById('user-name').textContent=info.email||'';
+      document.getElementById('login-screen').style.display='none';
+      document.getElementById('app').style.display='block';
+      await initSheets();await loadData();
+    }
+  });
+  tokenClient.requestAccessToken();
+}
+
+function signOut(){
+  if(accessToken)google.accounts.oauth2.revoke(accessToken);
+  accessToken=null;
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+}
+
+async function api(method,path,body){
+  const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+path,
+    {method,headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  if(!r.ok)throw new Error(await r.text());
+  return r.json();
+}
+
+async function getValues(range){return api('GET','/values/'+encodeURIComponent(range));}
+async function appendValues(sheet,values){return api('POST','/values/'+encodeURIComponent(sheet+'!A1')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{values});}
+async function updateValues(range,values){return api('PUT','/values/'+encodeURIComponent(range)+'?valueInputOption=RAW',{values});}
+async function batchUpd(requests){return api('POST',':batchUpdate',{requests});}
+
+async function getSheetIdByName(name){
+  const m=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID,{headers:{Authorization:'Bearer '+accessToken}}).then(r=>r.json());
+  return m.sheets.find(s=>s.properties.title===name)?.properties.sheetId;
+}
+
+async function initSheets(){
+  setStatus('Αρχικοποίηση...',true);
+  const m=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID,{headers:{Authorization:'Bearer '+accessToken}}).then(r=>r.json());
+  const names=m.sheets.map(s=>s.properties.title);
+  if(!names.includes(SH.exp)){
+    await batchUpd([{addSheet:{properties:{title:SH.exp}}}]);
+    await updateValues(SH.exp+'!A1:K1',[['ID','Ημερομηνία','Λογαριασμός','Ποσό','Προμηθευτής','Τύπος','Παραστατικό','Contract','Πελάτης','Link','Σχόλιο']]);
+  }
+  if(!names.includes(SH.acc)){
+    await batchUpd([{addSheet:{properties:{title:SH.acc}}}]);
+    await updateValues(SH.acc+'!A1:B1',[['Κωδικός','Περιγραφή']]);
+    await appendValues(SH.acc,[['61.00','Αμοιβές τρίτων'],['62.00','Παροχές τρίτων'],['62.03','Τηλεπικοινωνίες'],['62.04','Ενοίκια'],['62.05','Ασφάλιστρα'],['62.07','Επισκευές-συντήρηση'],['63.00','Φόροι-τέλη'],['64.00','Αμοιβές προσωπικού'],['65.00','Αποσβέσεις'],['66.00','Λοιπά έξοδα'],['68.00','Χρηματοοικονομικά']]);
+  }
+  setStatus('Έτοιμο',false);
+}
+
+async function loadData(){
+  setStatus('Φόρτωση...',true);
+  try{
+    const[eR,aR]=await Promise.all([getValues(SH.exp+'!A2:K10000'),getValues(SH.acc+'!A2:B1000')]);
+    expenses=((eR.values)||[]).map(r=>({id:r[0]||'',date:r[1]||'',account:r[2]||'',amount:parseFloat(r[3])||0,vendor:r[4]||'',type:r[5]||'Τιμολόγιο',invoiceNo:r[6]||'',contractRef:r[7]||'',clientRef:r[8]||'',docLink:r[9]||'',comment:r[10]||''})).filter(e=>e.id);
+    accounts=((aR.values)||[]).map(r=>({code:r[0]||'',label:r[1]||''})).filter(a=>a.code);
+    renderAll();
+    setStatus('Συνδεδεμένος · '+expenses.length+' εγγραφές',false);
+  }catch(e){setStatus('Σφάλμα',false);toast('Σφάλμα φόρτωσης: '+e.message,'error');}
+}
+
+function fEur(n){return new Intl.NumberFormat('el-GR',{style:'currency',currency:'EUR'}).format(n||0);}
+function fDate(d){if(!d)return'—';try{return new Date(d).toLocaleDateString('el-GR');}catch{return d;}}
+
+function renderAll(){renderSummary();renderList();renderAccountsTab();populateSelects();}
+
+function renderSummary(){
+  const total=expenses.reduce((s,e)=>s+e.amount,0);
+  const byAcc={};
+  expenses.forEach(e=>{if(!byAcc[e.account])byAcc[e.account]={t:0,c:0};byAcc[e.account].t+=e.amount;byAcc[e.account].c++;});
+  const top=Object.entries(byAcc).sort((a,b)=>b[1].t-a[1].t).slice(0,3);
+  let h=`<div class="summary-card"><div class="lbl">Σύνολο</div><div class="val">${fEur(total)}</div><div class="sub">${expenses.length} εγγραφές</div></div>`;
+  top.forEach(([code,d])=>{const a=accounts.find(x=>x.code===code);h+=`<div class="summary-card"><div class="lbl">${code}</div><div class="val">${fEur(d.t)}</div><div class="sub">${a?a.label:''}</div></div>`;});
+  document.getElementById('summary-grid').innerHTML=h;
+}
+
+function renderList(){
+  const search=document.getElementById('f-search').value.toLowerCase();
+  const accF=document.getElementById('f-account').value;
+  const typeF=document.getElementById('f-type').value;
+  const filtered=expenses.filter(e=>{
+    if(accF&&e.account!==accF)return false;
+    if(typeF&&e.type!==typeF)return false;
+    if(search&&![e.vendor,e.comment,e.invoiceNo,e.contractRef,e.clientRef,e.account].some(v=>(v||'').toLowerCase().includes(search)))return false;
+    return true;
+  }).sort((a,b)=>b.date.localeCompare(a.date));
+  const tbody=document.getElementById('expense-tbody');
+  if(!filtered.length){tbody.innerHTML='<tr><td colspan="7" class="empty">Δεν βρέθηκαν εγγραφές.</td></tr>';document.getElementById('expense-tfoot').innerHTML='';return;}
+  tbody.innerHTML=filtered.map(e=>{
+    const acc=accounts.find(a=>a.code===e.account);
+    const refs=[e.contractRef?`<span class="badge badge-blue">📋 ${e.contractRef}</span>`:'',e.clientRef?`<span class="badge badge-amber">👤 ${e.clientRef}</span>`:''].filter(Boolean).join(' ');
+    return`<tr onclick="openDetail('${e.id}')">
+      <td><div>${fDate(e.date)}</div><div style="margin-top:3px"><span class="badge badge-gray">${e.type}</span></div></td>
+      <td><div style="color:var(--red);font-weight:700">${e.account}</div><div style="color:var(--text3);font-size:10px">${acc?acc.label:''}</div></td>
+      <td>${e.vendor||'<span style="color:var(--text3)">—</span>'}</td>
+      <td style="color:var(--text3);font-size:11px">${e.invoiceNo||'—'}</td>
+      <td>${refs||'<span style="color:var(--text3)">—</span>'}</td>
+      <td style="text-align:right;font-weight:700">${fEur(e.amount)}</td>
+      <td>${e.docLink?'<span class="badge badge-green">🔗</span>':'<span style="color:var(--text3)">—</span>'}</td>
+    </tr>`;
+  }).join('');
+  const tot=filtered.reduce((s,e)=>s+e.amount,0);
+  document.getElementById('expense-tfoot').innerHTML=`<tr><td colspan="5" style="color:var(--text3);font-size:10px">Σύνολο (${filtered.length})</td><td style="text-align:right">${fEur(tot)}</td><td></td></tr>`;
+}
+
+function renderAccountsTab(){
+  document.getElementById('accounts-tbody').innerHTML=accounts.map((a,i)=>{
+    const total=expenses.filter(e=>e.account===a.code).reduce((s,e)=>s+e.amount,0);
+    const count=expenses.filter(e=>e.account===a.code).length;
+    return`<tr><td style="color:var(--red);font-weight:700">${a.code}</td><td>${a.label}</td><td>${fEur(total)}</td><td style="color:var(--text3)">${count}</td><td><button class="btn btn-ghost btn-sm" onclick="deleteAccount(${i})">✕</button></td></tr>`;
+  }).join('');
+}
+
+function populateSelects(){
+  const opts=['<option value="">— Επιλογή —</option>',...accounts.map(a=>`<option value="${a.code}">${a.code} · ${a.label}</option>`)].join('');
+  const fOpts=['<option value="">Όλοι οι λογαριασμοί</option>',...accounts.map(a=>`<option value="${a.code}">${a.code} · ${a.label}</option>`)].join('');
+  document.getElementById('f-account2').innerHTML=opts;
+  document.getElementById('f-account').innerHTML=fOpts;
+}
+
+function openForm(exp=null){
+  editingId=exp?exp.id:null;
+  document.getElementById('form-title').textContent=exp?'Επεξεργασία':'Νέα Δαπάνη';
+  document.getElementById('delete-btn').style.display=exp?'inline-block':'none';
+  document.getElementById('f-date').value=exp?exp.date:new Date().toISOString().split('T')[0];
+  document.getElementById('f-type2').value=exp?exp.type:'Τιμολόγιο';
+  document.getElementById('f-account2').value=exp?exp.account:'';
+  document.getElementById('f-amount').value=exp?exp.amount:'';
+  document.getElementById('f-vendor').value=exp?exp.vendor:'';
+  document.getElementById('f-invoice').value=exp?exp.invoiceNo:'';
+  document.getElementById('f-contract').value=exp?exp.contractRef:'';
+  document.getElementById('f-client').value=exp?exp.clientRef:'';
+  document.getElementById('f-doclink').value=exp?exp.docLink:'';
+  document.getElementById('f-comment').value=exp?exp.comment:'';
+  document.getElementById('form-overlay').classList.add('open');
+}
+function closeForm(){document.getElementById('form-overlay').classList.remove('open');}
+
+async function submitForm(){
+  const date=document.getElementById('f-date').value;
+  const account=document.getElementById('f-account2').value;
+  const amount=parseFloat(document.getElementById('f-amount').value);
+  if(!date||!account||isNaN(amount)){toast('Συμπλήρωσε τα υποχρεωτικά (*)','error');return;}
+  const row=[editingId||Date.now().toString(),date,account,amount,
+    document.getElementById('f-vendor').value,document.getElementById('f-type2').value,
+    document.getElementById('f-invoice').value,document.getElementById('f-contract').value,
+    document.getElementById('f-client').value,document.getElementById('f-doclink').value,
+    document.getElementById('f-comment').value];
+  const btn=document.getElementById('save-btn');
+  btn.innerHTML='<span class="spinner"></span>';btn.disabled=true;
+  try{
+    if(editingId){
+      const idx=expenses.findIndex(e=>e.id===editingId);
+      if(idx>=0)await updateValues(SH.exp+`!A${idx+2}:K${idx+2}`,[row]);
+    }else{await appendValues(SH.exp,[row]);}
+    closeForm();await loadData();toast(editingId?'Αποθηκεύτηκε!':'Καταχωρήθηκε!','success');
+  }catch(e){toast('Σφάλμα: '+e.message,'error');}
+  finally{btn.innerHTML='Αποθήκευση';btn.disabled=false;}
+}
+
+async function deleteExpense(){
+  if(!editingId||!confirm('Διαγραφή;'))return;
+  const idx=expenses.findIndex(e=>e.id===editingId);if(idx<0)return;
+  try{
+    const sid=await getSheetIdByName(SH.exp);
+    await batchUpd([{deleteDimension:{range:{sheetId:sid,dimension:'ROWS',startIndex:idx+1,endIndex:idx+2}}}]);
+    closeForm();closeDetail();await loadData();toast('Διαγράφηκε.','success');
+  }catch(e){toast('Σφάλμα: '+e.message,'error');}
+}
+
+function openDetail(id){
+  const e=expenses.find(x=>x.id===id);if(!e)return;
+  const acc=accounts.find(a=>a.code===e.account);
+  document.getElementById('detail-content').innerHTML=`
+    <div class="modal-title">
+      <div>
+        <div style="color:var(--text3);font-size:11px">${fDate(e.date)} · <span class="badge badge-gray">${e.type}</span></div>
+        <div style="font-size:16px;margin-top:4px">${e.vendor||'Ανώνυμος'}</div>
+        <div style="font-size:28px;font-weight:900;color:var(--red);margin:6px 0">${fEur(e.amount)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+        <button class="modal-close" onclick="closeDetail()">✕</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeDetail();setTimeout(()=>openForm(expenses.find(x=>x.id==='${e.id}')),100)">Επεξεργασία</button>
+      </div>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-card"><h4>Στοιχεία</h4>
+        ${drow('Λογαριασμός',acc?acc.code+' · '+acc.label:e.account)}
+        ${e.invoiceNo?drow('Παραστατικό',e.invoiceNo):''}
+        ${e.contractRef?drow('Contract',e.contractRef):''}
+        ${e.clientRef?drow('Πελάτης',e.clientRef):''}
+        ${e.comment?`<div style="margin-top:10px"><div style="font-size:10px;color:var(--text3);margin-bottom:6px">Σχόλιο</div><div class="comment-box">${e.comment}</div></div>`:''}
+      </div>
+      <div class="detail-card"><h4>Έγγραφο</h4>
+        ${e.docLink?`<a class="doc-link" href="${e.docLink}" target="_blank">🔗 <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${e.docLink}</span> <span style="color:var(--text3)">↗</span></a>`:'<div style="color:var(--text3);font-size:11px">Δεν υπάρχει συνημμένο.</div>'}
+      </div>
+    </div>`;
+  document.getElementById('detail-overlay').classList.add('open');
+}
+function drow(k,v){return`<div class="detail-row"><span class="key">${k}</span><span class="val">${v}</span></div>`;}
+function closeDetail(){document.getElementById('detail-overlay').classList.remove('open');}
+
+async function addAccount(){
+  const code=document.getElementById('new-acc-code').value.trim();
+  const label=document.getElementById('new-acc-label').value.trim();
+  if(!code||!label){toast('Συμπλήρωσε κωδικό και περιγραφή','error');return;}
+  try{await appendValues(SH.acc,[[code,label]]);document.getElementById('new-acc-code').value='';document.getElementById('new-acc-label').value='';await loadData();toast('Προστέθηκε!','success');}
+  catch(e){toast('Σφάλμα: '+e.message,'error');}
+}
+
+async function deleteAccount(idx){
+  if(!confirm('Διαγραφή λογαριασμού;'))return;
+  try{const sid=await getSheetIdByName(SH.acc);await batchUpd([{deleteDimension:{range:{sheetId:sid,dimension:'ROWS',startIndex:idx+1,endIndex:idx+2}}}]);await loadData();toast('Διαγράφηκε.','success');}
+  catch(e){toast('Σφάλμα: '+e.message,'error');}
+}
+
+function handleImportDrop(e){e.preventDefault();document.getElementById('import-zone').classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)parseImportFile(f);}
+function handleImportFile(e){if(e.target.files[0])parseImportFile(e.target.files[0]);}
+
+function excelDateToISO(serial){
+  if(!serial||isNaN(serial))return'';
+  const d=new Date((serial-25569)*86400*1000);
+  return d.toISOString().split('T')[0];
+}
+
+function parseImportFile(file){
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      importRows=[];
+      let curAcc='',curLabel='';
+      for(let i=0;i<raw.length;i++){
+        const r=raw[i];
+        if(r[1]&&typeof r[1]==='string'&&/^\d{2}\.\d{2}/.test(r[1].trim())&&r[2]){
+          curAcc=r[1].trim();curLabel=r[2].toString().trim();continue;
+        }
+        const aa=r[1],dateSerial=r[2],invoice=r[3],desc=r[4];
+        const debit=parseFloat(r[5]),credit=parseFloat(r[6]),vendor=r[11];
+        if(!curAcc)continue;
+        if(typeof aa!=='number'||aa<=0)continue;
+        if(!dateSerial||isNaN(dateSerial))continue;
+        const amount=(!isNaN(debit)&&debit!==0)?debit:(!isNaN(credit)&&credit!==0)?-credit:0;
+        if(amount===0)continue;
+        const isoDate=excelDateToISO(dateSerial);
+        if(!isoDate)continue;
+        importRows.push({id:Date.now()+'_'+importRows.length,date:isoDate,account:curAcc,amount,vendor:(vendor||'').toString().trim(),type:'Τιμολόγιο',invoiceNo:(invoice||'').toString().trim(),contractRef:'',clientRef:'',docLink:'',comment:(desc||'').toString().trim()});
+      }
+      showImportPreview();
+    }catch(e){toast('Σφάλμα parsing: '+e.message,'error');}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showImportPreview(){
+  const area=document.getElementById('import-preview-area');
+  if(!importRows.length){area.innerHTML='<p style="color:var(--text3);margin-top:16px">Δεν βρέθηκαν εγγραφές.</p>';return;}
+  const preview=importRows.slice(0,10);
+  area.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:8px">
+    <div style="font-size:12px;color:var(--text2)">Βρέθηκαν <strong style="color:var(--text)">${importRows.length}</strong> εγγραφές. Preview (10):</div>
+    <button class="btn btn-primary" onclick="confirmImport()">✅ Εισαγωγή όλων</button>
+  </div>
+  <div class="import-preview"><table>
+    <thead><tr><th>Ημερομηνία</th><th>Λογαριασμός</th><th>Παραστατικό</th><th>Προμηθευτής</th><th style="text-align:right">Ποσό</th></tr></thead>
+    <tbody>${preview.map(r=>`<tr><td>${fDate(r.date)}</td><td style="color:var(--red)">${r.account}</td><td style="color:var(--text3)">${r.invoiceNo}</td><td>${(r.vendor||'').substring(0,40)}</td><td style="text-align:right">${fEur(r.amount)}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+async function confirmImport(){
+  if(!importRows.length)return;
+  if(!confirm(`Εισαγωγή ${importRows.length} εγγραφών;`))return;
+  setStatus('Εισαγωγή...',true);
+  try{
+    for(let i=0;i<importRows.length;i+=50){
+      const chunk=importRows.slice(i,i+50).map(r=>[r.id,r.date,r.account,r.amount,r.vendor,r.type,r.invoiceNo,r.contractRef,r.clientRef,r.docLink,r.comment]);
+      await appendValues(SH.exp,chunk);
+    }
+    importRows=[];
+    document.getElementById('import-preview-area').innerHTML='';
+    document.getElementById('import-file').value='';
+    await loadData();showTab('list');toast('Εισαγωγή ολοκληρώθηκε!','success');
+  }catch(e){toast('Σφάλμα: '+e.message,'error');setStatus('Σφάλμα',false);}
+}
+
+function showTab(name){
+  ['list','import','accounts'].forEach(t=>{document.getElementById('tab-'+t).style.display=t===name?'block':'none';});
+  document.querySelectorAll('.tab').forEach((el,i)=>{el.classList.toggle('active',['list','import','accounts'][i]===name);});
+}
+function clearFilters(){document.getElementById('f-search').value='';document.getElementById('f-account').value='';document.getElementById('f-type').value='';renderList();}
+function setStatus(msg,loading){document.getElementById('status-text').textContent=msg;document.getElementById('status-dot').className='dot'+(loading?' loading':'');}
+function toast(msg,type='success'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+type;setTimeout(()=>el.className='',3500);}
+
+document.getElementById('form-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeForm();});
+document.getElementById('detail-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDetail();});
+</script>
+</body>
+</html>
